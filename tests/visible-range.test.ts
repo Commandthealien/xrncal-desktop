@@ -41,6 +41,25 @@ describe('Visible Range & Week Calculations', () => {
     expect(end.day).toBe(18)
   })
 
+  /**
+   * `cccc` and `MMMM` render in the DateTime's own locale, which is the system
+   * default unless it is set. The Vietnamese day label therefore read
+   * "Thursday, 17/09/2026" with the rest of the UI in Vietnamese.
+   */
+  it('names the weekday in the requested locale, not the system one', () => {
+    expect(getVisibleRange(anchorDate, 'day', 'vi').label).toBe('Thứ Ba, 18/08/2026')
+    expect(getVisibleRange(anchorDate, 'day', 'en').label).toBe('Tuesday, August 18, 2026')
+  })
+
+  it('keeps range maths on ISO weekdays whatever the locale', () => {
+    for (const locale of ['vi', 'en']) {
+      const range = getVisibleRange(anchorDate, 'week', locale)
+      const start = DateTime.fromISO(range.startUtc, { zone: 'utc' })
+      expect(start.weekday).toBe(1)
+      expect(start.day).toBe(17)
+    }
+  })
+
   it('should calculate Year range covering entire calendar year', () => {
     const range = getVisibleRange(anchorDate, 'year', 'en')
     expect(range.label).toBe('2026')

@@ -56,7 +56,7 @@ export const DayView: React.FC<DayViewProps> = ({
   const scrollRef = useRef<HTMLDivElement>(null)
   const columnRef = useRef<HTMLDivElement>(null)
 
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   const { hourBlockSize, dayStartHour, dragSnapMinutes } = useDisplayPreferences()
   const HOUR_HEIGHT = HOUR_HEIGHT_BY_SIZE[hourBlockSize]
   const gridColsClass = 'grid-cols-[68px_minmax(0,1fr)]'
@@ -157,7 +157,7 @@ export const DayView: React.FC<DayViewProps> = ({
           </span>
           <div className="min-w-0">
             <h3 className="text-base font-bold capitalize text-primary truncate">
-              {anchorDate.toFormat('cccc, dd MMMM yyyy')}
+              {anchorDate.setLocale(i18n.language).toFormat('cccc, dd MMMM yyyy')}
             </h3>
             {showLunar && (
               <div className="mt-0.5 flex items-center gap-1.5 text-xs text-muted">

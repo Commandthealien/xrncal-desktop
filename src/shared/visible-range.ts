@@ -21,6 +21,11 @@ export function getVisibleRange(
   let label: string = ''
 
   const isVi = locale === 'vi'
+  // Weekday and month names come out of Luxon in the DateTime's own locale, not
+  // the app's - so a label built from a bare anchorDate read "Thursday" with the
+  // whole UI in Vietnamese. Range maths stays on anchorDate: weekday, weekNumber
+  // and startOf() are ISO here and a locale must not be able to shift them.
+  const labelDate = anchorDate.setLocale(locale)
 
   switch (view) {
     case 'month': {
@@ -32,7 +37,7 @@ export function getVisibleRange(
       end = start.plus({ days: 41 }).endOf('day')
       label = isVi
         ? `Tháng ${anchorDate.month}, ${anchorDate.year}`
-        : `${anchorDate.toFormat('MMMM yyyy')}`
+        : `${labelDate.toFormat('MMMM yyyy')}`
       break
     }
     case 'week': {
@@ -43,15 +48,17 @@ export function getVisibleRange(
       const endFmt = end.toFormat('dd/MM/yyyy')
       label = isVi
         ? `Tuần ${anchorDate.weekNumber} (${startFmt} – ${endFmt})`
-        : `Week ${anchorDate.weekNumber} (${start.toFormat('MMM d')} – ${end.toFormat('MMM d, yyyy')})`
+        : `Week ${anchorDate.weekNumber} (${start.setLocale(locale).toFormat('MMM d')} – ${end
+            .setLocale(locale)
+            .toFormat('MMM d, yyyy')})`
       break
     }
     case 'day': {
       start = anchorDate.startOf('day')
       end = anchorDate.endOf('day')
       label = isVi
-        ? `${anchorDate.toFormat('cccc, dd/MM/yyyy')}`
-        : `${anchorDate.toFormat('cccc, MMMM d, yyyy')}`
+        ? `${labelDate.toFormat('cccc, dd/MM/yyyy')}`
+        : `${labelDate.toFormat('cccc, MMMM d, yyyy')}`
       break
     }
     case 'year': {
