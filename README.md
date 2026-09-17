@@ -5,8 +5,8 @@
 <h1 align="center">xrncal</h1>
 
 <p align="center">
-  <strong>Lịch desktop local-first cho Windows và Linux.</strong><br>
-  Google, Microsoft 365 và CalDAV trong một cửa sổ — kèm <em>lịch âm</em> và <em>giỗ theo năm âm</em>.
+  <strong>A local-first desktop calendar for Windows and Linux.</strong><br>
+  Google, Microsoft 365 and CalDAV in one window — with <em>Vietnamese lunar dates</em> and <em>lunar-year anniversaries</em>.
 </p>
 
 <p align="center">
@@ -19,96 +19,100 @@
 </p>
 
 <p align="center">
-  <img src="docs/assets/screenshots/month-dark.png" alt="xrncal — view Tháng, nhãn âm lịch trên từng ô ngày, số tuần ISO, nhiều lịch từ nhiều tài khoản" width="880">
+  <img src="docs/assets/screenshots/month-dark.png" alt="xrncal month view with lunar day labels, ISO week numbers and calendars from several accounts" width="880">
 </p>
 
 <p align="center">
-  <a href="#khác-gì-với-app-lịch-thường">Khác gì?</a> ·
-  <a href="#ảnh-màn-hình">Ảnh màn hình</a> ·
-  <a href="#cài-đặt">Cài đặt</a> ·
-  <a href="#tính-năng">Tính năng</a> ·
-  <a href="#kiến-trúc">Kiến trúc</a> ·
-  <a href="#phát-triển">Phát triển</a>
+  <strong>English</strong> · <a href="README.vi.md">Tiếng Việt</a>
+</p>
+
+<p align="center">
+  <a href="#why-not-just-use-your-existing-calendar">Why this?</a> ·
+  <a href="#screenshots">Screenshots</a> ·
+  <a href="#install">Install</a> ·
+  <a href="#features">Features</a> ·
+  <a href="#architecture">Architecture</a> ·
+  <a href="#development">Development</a>
 </p>
 
 ---
 
-## Khác gì với app lịch thường
+## Why not just use your existing calendar
 
-Phần lớn app lịch là **client của một dịch vụ**, hoặc là **tab web đóng gói lại**. xrncal đi hướng khác: dữ liệu nằm trong SQLite trên máy bạn, các provider chỉ là nơi đẩy đi / kéo về.
+Most calendar apps are **a client for one service**, or **a web tab in a wrapper**. xrncal works the other way round: your data lives in SQLite on your machine, and providers are just somewhere to push it to and pull it from.
 
-### 1. Âm lịch là công dân hạng nhất, không phải plugin
+### 1. The lunar calendar is a first-class citizen, not a plugin
 
-Đây là lý do app này tồn tại.
+This is the reason the app exists.
 
-- Nhãn âm lịch hiện trên **mọi view** — ô ngày trong Tháng, header Tuần, nhóm ngày trong Danh sách. Mùng 1 âm được tô riêng.
-- **Giỗ / ngày âm lặp hằng năm** là một loại sự kiện thật sự: bạn khai báo *"12 tháng 8 âm"*, app tự giải ra ngày dương cho **từng năm**, xử lý cả tháng nhuận và tháng thiếu 29 ngày.
-- Google Calendar / Outlook / Apple Calendar không có quy tắc lặp theo lịch âm. Cách duy nhất ở đó là tự tra rồi tạo tay từng năm một — sai một năm là trượt cả chuỗi.
-- Giỗ được **materialize** thành sự kiện thường trong lịch có sync, nên điện thoại và đồng nghiệp vẫn thấy, dù họ không dùng xrncal.
+- Lunar day labels appear in **every view** — month cells, week headers, list groups. The first day of a lunar month is marked separately.
+- **Giỗ / anniversaries that repeat by the lunar year** are a real event type. You declare *"the 12th day of the 8th lunar month"* and the app resolves the Gregorian date for **each year**, handling leap months and short 29-day months.
+- Google Calendar, Outlook and Apple Calendar have no lunar recurrence rule at all. There, the only option is to look each year up and create it by hand — miss one and the whole series drifts.
+- Those anniversaries are **materialised** into an ordinary event in a synced calendar, so your phone and your colleagues still see them even though they don't run xrncal.
 
-### 2. Offline là mặc định, không phải chế độ dự phòng
+### 2. Offline is the default, not a degraded mode
 
-SQLite là **nguồn sự thật cho UI**. Mất mạng vẫn xem, vẫn tạo, vẫn sửa, vẫn xoá; sửa đổi được đánh `dirty = 1` và đẩy lên khi có mạng trở lại. Không có màn hình "không kết nối được".
+SQLite is the **source of truth for the UI**. With no network you can still browse, create, edit and delete; changes are marked `dirty = 1` and pushed when you are back online. There is no "cannot connect" screen.
 
-### 3. Ba nhà cung cấp, một cửa sổ, không ưu tiên ai
+### 3. Three providers, one window, no favourites
 
-Google Calendar, Microsoft 365 / Outlook.com và CalDAV (Nextcloud, Synology, generic) chạy **song song**, mỗi engine có `.catch` riêng — một provider hỏng không chặn hai cái còn lại.
+Google Calendar, Microsoft 365 / Outlook.com and CalDAV (Nextcloud, Synology, generic) sync **side by side**, each engine with its own `.catch` — one broken provider cannot block or cancel the other two.
 
-### 4. Xung đột được nói thẳng, không ghi đè im lặng
+### 4. Conflicts are surfaced, not silently overwritten
 
-Mọi update/delete đều gửi kèm precondition `If-Match`. Máy chủ trả `412` nghĩa là bản trên đó đã đổi: hàng đó được đánh dấu xung đột, **loại khỏi hàng đợi đẩy** và hiện ra để bạn chọn — thay vì thử lại rồi thất bại mãi mãi, hoặc đè mất thay đổi của người khác.
+Every update and delete carries an `If-Match` precondition. A `412` means the server-side copy has moved on: that row is flagged as conflicted, **taken out of the push queue**, and shown to you to resolve — instead of retrying and re-failing forever, or quietly overwriting somebody else's change.
 
-### 5. Token nằm trong OS secret store, và fail closed
+### 5. Tokens live in the OS secret store, and fail closed
 
-OAuth token và mật khẩu CalDAV được mã hoá bằng Electron `safeStorage`. Trên Linux không có keyring, app **từ chối lưu** và báo lỗi rõ ràng — không có đường lùi về plaintext. Không telemetry, không tài khoản xrncal, không máy chủ trung gian.
+OAuth tokens and CalDAV passwords are encrypted with Electron `safeStorage`. On a Linux box with no keyring available, the app **refuses to persist them** and says so plainly — there is no plaintext fallback. No telemetry, no xrncal account, no server in the middle.
 
-### 6. View viết tay, thao tác bằng chuột đúng nghĩa
+### 6. Hand-built views with real direct manipulation
 
-Năm view đều là component React tự viết, không dùng thư viện lịch bên thứ ba: kéo-thả, resize mép sự kiện, chọn khoảng thời gian bằng cách quét chuột, bước snap (15 / 30 / 60 phút) chỉnh được trong Settings. Kéo sang lịch khác thì hỏi *Move hay Copy* — và chỉ hỏi khi thao tác thật sự nhập nhằng.
+All five views are React components written for this app, with no third-party calendar library: drag and drop, edge resize, drag-select a time range, and a snap step (15 / 30 / 60 minutes) you set in Settings. Dropping onto another calendar asks *move or copy* — and only asks when the drop is genuinely ambiguous.
 
-|  | Lịch phổ thông | xrncal |
+|  | A typical calendar app | xrncal |
 | --- | --- | --- |
-| Âm lịch | Không, hoặc chỉ là nhãn phụ | Trên mọi view + lặp theo năm âm |
-| Dữ liệu | Trên máy chủ dịch vụ | SQLite trên máy bạn |
-| Offline | Xem là chính | Đọc, ghi, sửa, xoá đầy đủ |
-| Nhiều tài khoản | Mỗi dịch vụ một app / một tab | Google + Graph + CalDAV cùng lúc |
-| Xung đột sync | Thường là last-write-wins âm thầm | `If-Match` → đánh dấu 412 → bạn quyết |
-| Lịch chỉ đọc | Tuỳ UI chặn | Chặn ở tầng repo, không bypass được |
+| Lunar dates | Absent, or a secondary label | In every view, plus lunar-year recurrence |
+| Your data | On the provider's servers | SQLite on your machine |
+| Offline | Mostly read-only | Full read, write, edit, delete |
+| Multiple accounts | One app or tab per service | Google + Graph + CalDAV together |
+| Sync conflicts | Usually a silent last-write-wins | `If-Match` → 412 flagged → you decide |
+| Read-only calendars | Blocked in the UI | Blocked in the repo layer, unbypassable |
 
 ---
 
-## Ảnh màn hình
+## Screenshots
 
 <table>
 <tr>
 <td width="50%" valign="top">
-<img src="docs/assets/screenshots/week-light.png" alt="View Tuần, theme sáng">
-<p align="center"><sub><strong>Tuần</strong> — theme sáng, cột số tuần, vạch giờ hiện tại</sub></p>
+<img src="docs/assets/screenshots/week-light.png" alt="Week view, light theme">
+<p align="center"><sub><strong>Week</strong> — light theme, week-number column, current-time line</sub></p>
 </td>
 <td width="50%" valign="top">
-<img src="docs/assets/screenshots/list.png" alt="View Danh sách">
-<p align="center"><sub><strong>Danh sách</strong> — gom theo ngày, kèm ngày âm bên phải</sub></p>
+<img src="docs/assets/screenshots/list.png" alt="List view">
+<p align="center"><sub><strong>List</strong> — grouped by day, lunar date on the right</sub></p>
 </td>
 </tr>
 <tr>
 <td width="50%" valign="top">
-<img src="docs/assets/screenshots/event-editor.png" alt="Hộp thoại sửa sự kiện">
-<p align="center"><sub><strong>Editor</strong> — lịch, cả ngày, địa điểm, link họp, khách mời, lặp lại</sub></p>
+<img src="docs/assets/screenshots/event-editor.png" alt="Event editor dialog">
+<p align="center"><sub><strong>Editor</strong> — calendar, all-day, location, meeting link, guests, recurrence</sub></p>
 </td>
 <td width="50%" valign="top">
-<img src="docs/assets/screenshots/search.png" alt="Bảng tìm kiếm">
-<p align="center"><sub><strong>Tìm kiếm</strong> — FTS5, có dấu tiếng Việt, mở bằng <code>/</code></sub></p>
+<img src="docs/assets/screenshots/search.png" alt="Search palette">
+<p align="center"><sub><strong>Search</strong> — FTS5, Vietnamese diacritics, opens with <code>/</code></sub></p>
 </td>
 </tr>
 </table>
 
-<sub>Ảnh chụp từ bản build thật với dữ liệu mẫu.</sub>
+<sub>Captured from a real build running on sample data. The UI ships in both Vietnamese and English.</sub>
 
 ---
 
-## Cài đặt
+## Install
 
-Yêu cầu build: **Node.js 20+** và Git. Chưa có bản release dựng sẵn — hiện tại build từ nguồn.
+To build you need **Node.js 20+** and Git. There are no prebuilt releases yet — build from source.
 
 ```bash
 git clone https://github.com/Xernnn/xrncal-desktop.git
@@ -116,15 +120,15 @@ cd xrncal-desktop
 npm install
 ```
 
-### Linux — cài thành app bấm được từ menu
+### Linux — install it as a real app in your menu
 
 ```bash
 npm run app:install
 ```
 
-Lệnh này build AppImage, đặt vào `~/Applications/xrncal.AppImage`, tạo launcher ở `~/.local/share/applications/xrncal.desktop` rồi refresh menu. Tìm "xrncal" trong app menu là ra. Chạy lại chính lệnh đó mỗi khi muốn cập nhật — nó ghi đè đúng các đường dẫn cũ, và ghi bằng cách `rename` nên **không làm hỏng app đang chạy** (bản đang mở vẫn dùng bản cũ cho tới khi bạn thoát và mở lại).
+This builds the AppImage, puts it at `~/Applications/xrncal.AppImage`, writes a launcher to `~/.local/share/applications/xrncal.desktop` and refreshes the menu. Look for "xrncal" in your app list. Re-run the same command to update: it overwrites the same paths, and it writes by `rename`, so it **cannot corrupt a running app** (an open window keeps the build it started on until you quit and reopen it).
 
-Muốn tự cầm file AppImage:
+If you would rather hold the AppImage yourself:
 
 ```bash
 npm run pack:linux     # -> dist/*.AppImage
@@ -138,19 +142,19 @@ chmod +x dist/xrncal-*.AppImage
 npm run pack:win       # -> dist/  (NSIS installer, x64)
 ```
 
-Chạy file `.exe` trong `dist/` để cài. Không có bản macOS.
+Run the `.exe` in `dist/` to install. There is no macOS build.
 
-### Chạy thẳng bản dev
+### Run it straight from source
 
 ```bash
-npm run dev            # electron-vite, renderer hot-reload
+npm run dev            # electron-vite, renderer hot reload
 ```
 
-### Kết nối tài khoản
+### Connecting accounts
 
-CalDAV (Nextcloud, Synology, …) chỉ cần URL + tài khoản, **không cần cấu hình gì thêm**.
+CalDAV (Nextcloud, Synology, …) needs nothing but a URL and your credentials.
 
-Google và Microsoft cần OAuth client **của chính bạn** — app không đóng gói sẵn client secret. Chép [`.env.example`](.env.example) thành `.env` rồi điền:
+Google and Microsoft need **your own** OAuth client — no client secret is bundled with the app. Copy [`.env.example`](.env.example) to `.env` and fill in:
 
 ```ini
 GOOGLE_OAUTH_CLIENT_ID=
@@ -159,90 +163,90 @@ MICROSOFT_CLIENT_ID=
 MICROSOFT_CLIENT_SECRET=
 ```
 
-Với bản đã đóng gói, đặt cùng nội dung đó vào `xrncal.env` trong thư mục dữ liệu (xem bên dưới). Chưa điền thì nút kết nối Google / Microsoft bị tắt và app chạy hoàn toàn local — đó là hành vi đúng, không phải lỗi. Chi tiết đăng ký OAuth: [`docs/deployment-guide.md`](docs/deployment-guide.md).
+For a packaged build, put the same lines in `xrncal.env` inside the data directory (below). Until they are set, the Google and Microsoft connect buttons stay disabled and the app runs fully local — that is the intended behaviour, not a bug. Registering the OAuth clients: [`docs/deployment-guide.md`](docs/deployment-guide.md).
 
-### Dữ liệu nằm ở đâu
+### Where your data lives
 
-| Hệ | Đường dẫn |
+| OS | Path |
 | --- | --- |
 | Linux | `~/.config/xrncal/xrncal.sqlite` |
 | Windows | `%APPDATA%\xrncal\xrncal.sqlite` |
 
-Sao lưu bất cứ lúc nào bằng **Settings → Sao lưu cơ sở dữ liệu** (ghi ra một file `.sqlite` mở được bằng bất kỳ công cụ SQLite nào).
+Back it up at any time from **Settings → Back up database**, which writes a plain `.sqlite` file any SQLite tool can open.
 
-> Nâng cấp từ bản **Gone Calendar** cũ: lần chạy đầu tiên xrncal tự chép dữ liệu từ `gone-calendar` sang. Profile cũ vẫn được giữ nguyên tại chỗ.
+> Upgrading from the old **Gone Calendar** build: the first launch of xrncal copies your data across automatically. The old profile is left exactly where it was.
 
 ---
 
-## Tính năng
+## Features
 
 <table>
 <tr>
 <td width="50%" valign="top">
 
-**Lịch**
-- 5 view: Ngày, Tuần, Tháng, Năm, Danh sách
-- Kéo-thả, resize mép, quét chọn khoảng giờ
-- Bước snap 15 / 30 / 60 phút
-- Lặp lại: lần này / từ đây trở đi / cả chuỗi
-- Sự kiện nhiều ngày, cả ngày, số tuần ISO
-- Cột giờ múi thứ hai cho lịch xuyên quốc gia
+**Calendar**
+- Five views: Day, Week, Month, Year, List
+- Drag and drop, edge resize, drag-select a range
+- Snap step of 15 / 30 / 60 minutes
+- Recurring edits: this one / this and future / all
+- Multi-day and all-day events, ISO week numbers
+- A second timezone gutter for cross-border schedules
 
 </td>
 <td width="50%" valign="top">
 
-**Việt Nam & ngôn ngữ**
-- Âm lịch trên Tháng / Tuần / Danh sách
-- Giỗ lặp theo năm âm, xử lý tháng nhuận
-- Lịch lễ Việt Nam và quốc tế, subscribe 1 cú bấm
-- Giao diện tiếng Việt và English
+**Vietnam & languages**
+- Lunar dates in Month / Week / List
+- Anniversaries recurring by lunar year, leap months handled
+- Vietnamese and international holiday calendars, one click
+- Interface in Vietnamese and English
 
 </td>
 </tr>
 <tr>
 <td width="50%" valign="top">
 
-**Đồng bộ**
+**Sync**
 - Google Calendar (OAuth loopback + PKCE)
 - Microsoft 365 / Outlook.com (Graph)
 - CalDAV: Nextcloud, Synology, generic
-- Sửa một lần xuất hiện cũng được đẩy lên đúng
-- Poll thích ứng: 20s khi đang dùng, 5 phút khi blur
-- Bảng xử lý xung đột 412
+- Single-occurrence edits push correctly too
+- Adaptive polling: 20s while focused, 5m in the tray
+- A resolution screen for 412 conflicts
 
 </td>
 <td width="50%" valign="top">
 
-**Chỗ làm việc**
-- Cửa sổ mini luôn-trên-cùng từ khay hệ thống
-- Thông báo nhắc trước giờ (Windows / Linux)
-- Theme sáng / tối / theo hệ thống, ảnh nền tuỳ chỉnh
-- Tìm kiếm FTS5, gợi ý tiêu đề từ lịch sử của bạn
-- Nhập / xuất `.ics`, sao lưu database
-- Gỡ tài khoản mà vẫn giữ lại sự kiện
+**Workspace**
+- Always-on-top mini window from the tray
+- Reminder notifications (Windows / Linux)
+- Light / dark / system theme, custom wallpaper
+- FTS5 search, title suggestions from your own history
+- `.ics` import and export, database backup
+- Detach a provider and keep every event it brought
 
 </td>
 </tr>
 </table>
 
-### Phím tắt
+### Keyboard shortcuts
 
-| Phím | Việc |
+| Key | Action |
 | --- | --- |
-| `T` | Về hôm nay |
-| `1` `2` `3` `4` `5` | Ngày · Tuần · Tháng · Năm · Danh sách |
-| `N` hoặc `C` | Tạo sự kiện |
-| `Ctrl+K` hoặc `/` | Tìm kiếm |
-| `?` hoặc `F1` | Bảng phím tắt |
+| `T` | Jump to today |
+| `1` `2` `3` `4` `5` | Day · Week · Month · Year · List |
+| `N` or `C` | New event |
+| `Ctrl+K` or `/` | Search |
+| `?` or `F1` | Shortcut reference |
 
 ---
 
-## Kiến trúc
+## Architecture
 
 ```mermaid
 flowchart LR
   subgraph renderer [Renderer · sandboxed]
-    UI[5 view · Editor · DnD]
+    UI[5 views · Editor · DnD]
   end
   subgraph preload [Preload]
     Bridge["window.xrncal"]
@@ -258,45 +262,45 @@ flowchart LR
   OS --- DB
 ```
 
-| Tầng | Thư mục | Việc |
+| Layer | Directory | Responsibility |
 | --- | --- | --- |
-| Renderer | `src/renderer` | React 19, 5 view, editor, i18n, theme |
-| Preload | `src/preload` | `window.xrncal` có type, sandbox bật |
-| Main | `src/main` | SQLite, OAuth, sync, tray, thông báo |
-| Shared | `src/shared` | `CalendarEvent`, `XrncalAPI`, âm lịch, ngày lễ |
+| Renderer | `src/renderer` | React 19, five views, editor, i18n, theming |
+| Preload | `src/preload` | Typed `window.xrncal`, sandbox on |
+| Main | `src/main` | SQLite, OAuth, sync, tray, notifications |
+| Shared | `src/shared` | `CalendarEvent`, `XrncalAPI`, lunar calendar, holidays |
 
-Renderer **không bao giờ** import `src/main`; IPC là cây cầu duy nhất, và mọi channel được khai báo tập trung trong `src/shared/ipc-contract.ts`. Lịch chỉ đọc (ngày lễ) bị chặn ghi ngay ở tầng repo, không phải ở UI.
+The renderer **never** imports `src/main`; IPC is the only bridge, and every channel is declared in one place, `src/shared/ipc-contract.ts`. Read-only calendars (holiday subscriptions) are rejected in the repo layer rather than the UI, so no code path can write to them.
 
 ---
 
-## Phát triển
+## Development
 
 ```bash
-npm run dev            # chạy app, hot-reload renderer
-npm run typecheck      # tsc cho main + renderer (chạy trước khi commit)
+npm run dev            # run the app with renderer hot reload
+npm run typecheck      # tsc for main + renderer (run before committing)
 npm run lint           # ESLint 9 flat config
-npm run test           # Vitest — chạy trong Node, không cần Electron binary
-npm run build          # bundle production -> out/
+npm run test           # Vitest — runs in Node, no Electron binary needed
+npm run build          # production bundle -> out/
 ```
 
-Chạy một file test: `npx vitest run tests/expand-occurrences.test.ts`. CI chạy lint + typecheck + test + build trên mọi push và PR.
+Run a single test file: `npx vitest run tests/expand-occurrences.test.ts`. CI runs lint + typecheck + test + build on every push and pull request.
 
-| Tài liệu | Nội dung |
+| Document | Contents |
 | --- | --- |
-| [Architecture](docs/system-architecture.md) | Process, IPC, luồng dữ liệu |
-| [Codebase](docs/codebase-summary.md) | Map thư mục và schema |
-| [Standards](docs/code-standards.md) | Naming, quy ước, bảo mật |
-| [Design](docs/design-guidelines.md) | Token màu, chrome, motion |
-| [Deploy](docs/deployment-guide.md) | Build, đóng gói, đăng ký OAuth |
-| [URD](docs/urd.md) · [PDR](docs/project-overview-pdr.md) · [Roadmap](docs/project-roadmap.md) | Phạm vi và quyết định sản phẩm |
+| [Architecture](docs/system-architecture.md) | Processes, IPC, data flow |
+| [Codebase](docs/codebase-summary.md) | Directory map and schema |
+| [Standards](docs/code-standards.md) | Naming, conventions, security rules |
+| [Design](docs/design-guidelines.md) | Colour tokens, chrome, motion |
+| [Deploy](docs/deployment-guide.md) | Building, packaging, OAuth registration |
+| [URD](docs/urd.md) · [PDR](docs/project-overview-pdr.md) · [Roadmap](docs/project-roadmap.md) | Scope and product decisions |
 
 ---
 
-## Giấy phép
+## Licence
 
 [MIT](LICENSE) © Xernnn.
 
-Dùng `ical.js` (MPL-2.0) và `rrule` (BSD-3-Clause); còn lại là MIT hoặc ISC. Không có phụ thuộc copyleft lây lan.
+Uses `ical.js` (MPL-2.0) and `rrule` (BSD-3-Clause); everything else is MIT or ISC. No viral copyleft dependencies.
 
 ---
 
