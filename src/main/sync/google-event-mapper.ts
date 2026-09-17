@@ -67,7 +67,11 @@ export const GOOGLE_COLOR_ID_BY_HEX: Record<string, string> = Object.fromEntries
  * per-client escape hatch and round-trip losslessly, so the link survives a
  * push/pull cycle instead of being dropped on the way out.
  */
-export const GONE_MEETING_URL_PROP = 'goneMeetingUrl'
+export const XRNCAL_MEETING_URL_PROP = 'xrncalMeetingUrl'
+
+/** The same property under the app's former name. Events pushed before the
+ *  rename still carry it, so pulls read it as a fallback; pushes never write it. */
+export const LEGACY_MEETING_URL_PROP = 'goneMeetingUrl'
 
 /**
  * Format Google Event DateTime to ISO UTC and determine all-day status
@@ -135,7 +139,8 @@ export function mapGoogleEventToDomain(
     if (videoEntry) meetingUrl = videoEntry.uri
   }
   // A link we pushed ourselves comes back here rather than as a real conference.
-  if (!meetingUrl) meetingUrl = gEvent.extendedProperties?.private?.[GONE_MEETING_URL_PROP]
+  if (!meetingUrl) meetingUrl = gEvent.extendedProperties?.private?.[XRNCAL_MEETING_URL_PROP]
+  if (!meetingUrl) meetingUrl = gEvent.extendedProperties?.private?.[LEGACY_MEETING_URL_PROP]
 
   const isCancelled = gEvent.status === 'cancelled'
 
@@ -245,7 +250,7 @@ export function mapDomainEventToGoogle(
   }
   if (event.meetingUrl) {
     gEvent.extendedProperties = {
-      private: { [GONE_MEETING_URL_PROP]: event.meetingUrl }
+      private: { [XRNCAL_MEETING_URL_PROP]: event.meetingUrl }
     }
   }
 

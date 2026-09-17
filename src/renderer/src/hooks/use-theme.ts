@@ -47,15 +47,15 @@ export function useTheme() {
   const persistMode = useCallback(async (next: ThemeMode) => {
     setMode(next)
     setThemeConfig((prev) => ({ ...prev, mode: next }))
-    if (window.gone?.settings) {
-      await window.gone.settings.set('theme', next)
+    if (window.xrncal?.settings) {
+      await window.xrncal.settings.set('theme', next)
     }
   }, [])
 
   const loadFromSettings = useCallback(async () => {
-    if (!window.gone?.settings) return
+    if (!window.xrncal?.settings) return
     try {
-      const settings = await window.gone.settings.getAll()
+      const settings = await window.xrncal.settings.getAll()
       const nextMode = (settings.theme as ThemeMode) || DEFAULT_APP_SETTINGS.theme
       setMode(nextMode)
       setThemeConfig({

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Build Gone Calendar and (re)install it as a clickable desktop app for the
+# Build xrncal and (re)install it as a clickable desktop app for the
 # current user. Re-run this any time to update the installed app to the latest
 # code — it overwrites the same paths, so the launcher entry always points at
 # the newest build.
@@ -8,8 +8,8 @@ set -euo pipefail
 PROJECT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$PROJECT_DIR"
 
-APP_NAME="Gone Calendar"
-APP_ID="gone-calendar"
+APP_NAME="xrncal"
+APP_ID="xrncal"
 APPS_DIR="$HOME/Applications"
 DESKTOP_DIR="$HOME/.local/share/applications"
 ICON_DIR="$HOME/.local/share/icons"
@@ -48,7 +48,7 @@ Exec="${TARGET_APPIMAGE}" %U
 Icon=${ICON_DIR}/${APP_ID}.png
 Terminal=false
 Categories=Office;Calendar;
-StartupWMClass=Gone Calendar
+StartupWMClass=xrncal
 EOF
 chmod 644 "$DESKTOP_DIR/${APP_ID}.desktop"
 

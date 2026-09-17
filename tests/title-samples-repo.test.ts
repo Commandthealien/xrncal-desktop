@@ -84,7 +84,7 @@ describe('EventsRepo.listTitleSamples', () => {
     db.prepare(
       `INSERT INTO events (id, calendar_id, uid, title, dtstart_utc, dtend_utc, tzid, all_day,
                            is_deleted, dirty, has_conflict, created_at, updated_at)
-       VALUES ('ro-1', ?, 'ro-1@gone', 'National Day', '2026-09-02T00:00:00.000Z',
+       VALUES ('ro-1', ?, 'ro-1@xrncal', 'National Day', '2026-09-02T00:00:00.000Z',
                '2026-09-02T00:00:00.000Z', 'UTC', 1, 0, 0, 0, ?, ?)`
     ).run(holidays.id, NOW.toISO()!, NOW.toISO()!)
 

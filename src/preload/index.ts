@@ -1,8 +1,8 @@
 import { contextBridge, ipcRenderer } from 'electron'
-import { IPC_CHANNELS, type AppLocale, type GoneAPI } from '@shared/ipc-contract'
+import { IPC_CHANNELS, type AppLocale, type XrncalAPI } from '@shared/ipc-contract'
 import type { Calendar, CreateEventInput, UpdateEventInput, EventException } from '@shared/event-model'
 
-const goneApi: GoneAPI = {
+const xrncalApi: XrncalAPI = {
   app: {
     getVersion: () => ipcRenderer.invoke(IPC_CHANNELS.APP.GET_VERSION),
     getLocale: () => ipcRenderer.invoke(IPC_CHANNELS.APP.GET_LOCALE),
@@ -94,11 +94,11 @@ const goneApi: GoneAPI = {
 // Expose safe API to renderer via context bridge
 if (process.contextIsolated) {
   try {
-    contextBridge.exposeInMainWorld('gone', goneApi)
+    contextBridge.exposeInMainWorld('xrncal', xrncalApi)
   } catch (error) {
-    console.error('Failed to expose gone API in context bridge:', error)
+    console.error('Failed to expose xrncal API in context bridge:', error)
   }
 } else {
   // @ts-expect-error - fallback for non-context-isolated test renderers
-  window.gone = goneApi
+  window.xrncal = xrncalApi
 }

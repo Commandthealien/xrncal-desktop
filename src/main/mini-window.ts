@@ -30,7 +30,7 @@ export function createMiniWindow(mainWin: BrowserWindow): BrowserWindow {
     alwaysOnTop: true,
     skipTaskbar: true,
     backgroundColor: initialBg,
-    title: 'Gone Calendar Mini',
+    title: 'xrncal Mini',
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
       sandbox: true,

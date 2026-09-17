@@ -1,4 +1,4 @@
-# Gone Calendar — System Architecture
+# xrncal — System Architecture
 
 **Last updated:** 2026-08-18
 
@@ -6,7 +6,7 @@
 
 ## Process Architecture
 
-Gone Calendar follows Electron's multi-process model with strict security boundaries.
+xrncal follows Electron's multi-process model with strict security boundaries.
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
@@ -24,12 +24,12 @@ Gone Calendar follows Electron's multi-process model with strict security bounda
 │  MiniApp (companion window via #mini hash)                  │
 │  └── Upcoming events list + task quick-add                  │
 └───────────────────────┬─────────────────────────────────────┘
-                        │ contextBridge (window.gone)
+                        │ contextBridge (window.xrncal)
                         │ contextIsolation: true
                         │ nodeIntegration: false
 ┌───────────────────────▼─────────────────────────────────────┐
 │  Preload Script                                             │
-│  exposes window.gone (GoneAPI) via contextBridge            │
+│  exposes window.xrncal (XrncalAPI) via contextBridge            │
 │  Typed IPC_CHANNELS from @shared/ipc-contract               │
 └───────────────────────┬─────────────────────────────────────┘
                         │ ipcRenderer.invoke / ipcMain.handle
@@ -69,7 +69,7 @@ Gone Calendar follows Electron's multi-process model with strict security bounda
 ```
 User navigates to Week view
   → App.tsx computes visible date range
-  → window.gone.events.queryRange(calendarIds, startUtc, endUtc)
+  → window.xrncal.events.queryRange(calendarIds, startUtc, endUtc)
   → ipcMain.handle(EVENT.QUERY_RANGE)
   → EventsRepo.queryRange() → SQLite SELECT + RRULE expansion
   → Returns ExpandedOccurrence[] to renderer
@@ -80,7 +80,7 @@ User navigates to Week view
 
 ```
 User submits event editor
-  → window.gone.events.create(input) or .update(id, input)
+  → window.xrncal.events.create(input) or .update(id, input)
   → ipcMain.handle(EVENT.CREATE/UPDATE)
   → EventsRepo writes to SQLite (dirty = 1 for synced calendars)
   → Returns saved event to renderer
@@ -103,7 +103,7 @@ SyncWorker.start()
 ### Authentication (Google example)
 
 ```
-window.gone.auth.connectGoogle()
+window.xrncal.auth.connectGoogle()
   → Main opens loopback HTTP server on random port
   → shell.openExternal(Google OAuth URL with redirect_uri=localhost:PORT)
   → User authorizes in OS browser
@@ -167,7 +167,7 @@ tasks (id, title, due_date, completed, show_on_calendar, created_at, updated_at)
 
 ## IPC Contract
 
-All IPC channels are constants in `src/shared/ipc-contract.ts`. The `GoneAPI` interface mirrors `window.gone` and is the single source of truth for the preload bridge.
+All IPC channels are constants in `src/shared/ipc-contract.ts`. The `XrncalAPI` interface mirrors `window.xrncal` and is the single source of truth for the preload bridge.
 
 **Namespace groups:** `APP`, `SETTINGS`, `AUTH`, `SYNC`, `CALENDAR`, `EVENT`, `ICS`, `TASK`, `MINI`, `HOLIDAYS`
 
@@ -198,7 +198,7 @@ The `shared` directory is the only place that both main and renderer can import.
 
 Key contracts:
 - `event-model.ts` — all domain types
-- `ipc-contract.ts` — IPC channel names and `GoneAPI` interface
+- `ipc-contract.ts` — IPC channel names and `XrncalAPI` interface
 - `settings-contract.ts` — settings keys and types
 - `task-model.ts` — task and theme types
 - `mini-calendar-grid.ts` — pure grid computation

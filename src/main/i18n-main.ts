@@ -11,7 +11,7 @@ let currentLocale: MainLocale = 'en'
 
 const STRINGS: Record<MainLocale, Record<string, string>> = {
   en: {
-    'tray.openMain': 'Open Gone Calendar',
+    'tray.openMain': 'Open xrncal',
     'tray.miniWindow': 'Mini window (upcoming events)',
     'tray.quit': 'Quit',
     'notify.reminder': 'Reminder: {title}',
@@ -20,7 +20,7 @@ const STRINGS: Record<MainLocale, Record<string, string>> = {
     'oauth.google.success': 'Google Calendar connected!',
     'oauth.microsoft.success': 'Microsoft Outlook / 365 connected!',
     'oauth.account': 'Account: {detail}',
-    'oauth.canClose': 'You can close this browser tab and return to Gone Calendar.',
+    'oauth.canClose': 'You can close this browser tab and return to xrncal.',
     'oauth.stateError': 'Authentication error: invalid state or code',
     'oauth.google.failed': 'Google sign-in failed: {error}',
     'oauth.microsoft.failed': 'Microsoft sign-in failed: {error}',
@@ -29,7 +29,7 @@ const STRINGS: Record<MainLocale, Record<string, string>> = {
     'oauth.timeout.microsoft': 'Microsoft authentication timed out (5 minutes). Please try again.'
   },
   vi: {
-    'tray.openMain': 'Mở Gone Calendar',
+    'tray.openMain': 'Mở xrncal',
     'tray.miniWindow': 'Cửa sổ Mini (sự kiện sắp tới)',
     'tray.quit': 'Thoát',
     'notify.reminder': 'Nhắc nhở: {title}',
@@ -38,7 +38,7 @@ const STRINGS: Record<MainLocale, Record<string, string>> = {
     'oauth.google.success': 'Kết nối Google Calendar thành công!',
     'oauth.microsoft.success': 'Kết nối Microsoft Outlook / 365 thành công!',
     'oauth.account': 'Tài khoản: {detail}',
-    'oauth.canClose': 'Bạn có thể đóng tab trình duyệt này và quay lại ứng dụng Gone Calendar.',
+    'oauth.canClose': 'Bạn có thể đóng tab trình duyệt này và quay lại ứng dụng xrncal.',
     'oauth.stateError': 'Lỗi xác thực: State hoặc Code không hợp lệ',
     'oauth.google.failed': 'Đăng nhập Google thất bại: {error}',
     'oauth.microsoft.failed': 'Đăng nhập Microsoft thất bại: {error}',

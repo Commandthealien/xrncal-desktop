@@ -57,10 +57,10 @@ export const SearchPaletteModal: React.FC<SearchPaletteModalProps> = ({
     }
 
     const timer = setTimeout(async () => {
-      if (!window.gone?.events?.search) return
+      if (!window.xrncal?.events?.search) return
       setIsLoading(true)
       try {
-        const res = await window.gone.events.search(trimmed, 30)
+        const res = await window.xrncal.events.search(trimmed, 30)
         setResults(res)
         setSelectedIndex(0)
       } catch (err) {

@@ -222,7 +222,7 @@ export class EventsRepo {
 
     const now = new Date().toISOString()
     const id = `evt_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`
-    const uid = input.uid || `${id}@gone.calendar`
+    const uid = input.uid || `${id}@xrncal.calendar`
     const tzid = input.tzid || 'UTC'
     const allDay = input.allDay ? 1 : 0
     const dirty = 1
@@ -687,7 +687,7 @@ export class EventsRepo {
         if (!isoDate) continue
 
         const id = `evt_${Date.now()}_${Math.random().toString(36).slice(2, 8)}_${year}`
-        const uid = `${id}@gone.calendar`
+        const uid = `${id}@xrncal.calendar`
         insert.run(
           id,
           input.targetCalendarId,
@@ -822,7 +822,7 @@ export class EventsRepo {
     // Generate new ID and new unique UID for the copied event
     const now = new Date().toISOString()
     const newId = `evt_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`
-    const newUid = `${newId}@gone.calendar`
+    const newUid = `${newId}@xrncal.calendar`
 
     // When copyInstanceOnly is true, create a single standalone event without rrule
     const rrule = input.copyInstanceOnly ? null : (existing.event.rrule || null)

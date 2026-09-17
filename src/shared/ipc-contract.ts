@@ -1,5 +1,5 @@
 /**
- * Type-safe IPC channels, payloads, and API signatures for Gone Calendar
+ * Type-safe IPC channels, payloads, and API signatures for xrncal
  */
 
 import type {
@@ -25,73 +25,73 @@ import type { AppSettings } from './settings-contract'
 
 export const IPC_CHANNELS = {
   APP: {
-    GET_VERSION: 'gone:app:get-version',
-    GET_LOCALE: 'gone:app:get-locale',
-    SET_LOCALE: 'gone:app:set-locale',
-    GET_PLATFORM: 'gone:app:get-platform',
-    PICK_BACKGROUND_IMAGE: 'gone:app:pick-background-image',
-    BACKUP_DATABASE: 'gone:app:backup-database'
+    GET_VERSION: 'xrncal:app:get-version',
+    GET_LOCALE: 'xrncal:app:get-locale',
+    SET_LOCALE: 'xrncal:app:set-locale',
+    GET_PLATFORM: 'xrncal:app:get-platform',
+    PICK_BACKGROUND_IMAGE: 'xrncal:app:pick-background-image',
+    BACKUP_DATABASE: 'xrncal:app:backup-database'
   },
   SETTINGS: {
-    GET_ALL: 'gone:settings:get-all',
-    GET: 'gone:settings:get',
-    SET: 'gone:settings:set'
+    GET_ALL: 'xrncal:settings:get-all',
+    GET: 'xrncal:settings:get',
+    SET: 'xrncal:settings:set'
   },
   AUTH: {
-    CONNECT_GOOGLE: 'gone:auth:connect-google',
-    DISCONNECT_GOOGLE: 'gone:auth:disconnect-google',
-    CONNECT_MICROSOFT: 'gone:auth:connect-microsoft',
-    DISCONNECT_MICROSOFT: 'gone:auth:disconnect-microsoft',
-    CONNECT_CALDAV: 'gone:auth:connect-caldav',
-    DISCONNECT_CALDAV: 'gone:auth:disconnect-caldav',
-    LIST_ACCOUNTS: 'gone:auth:list-accounts',
-    DETACH_ACCOUNT: 'gone:auth:detach-account'
+    CONNECT_GOOGLE: 'xrncal:auth:connect-google',
+    DISCONNECT_GOOGLE: 'xrncal:auth:disconnect-google',
+    CONNECT_MICROSOFT: 'xrncal:auth:connect-microsoft',
+    DISCONNECT_MICROSOFT: 'xrncal:auth:disconnect-microsoft',
+    CONNECT_CALDAV: 'xrncal:auth:connect-caldav',
+    DISCONNECT_CALDAV: 'xrncal:auth:disconnect-caldav',
+    LIST_ACCOUNTS: 'xrncal:auth:list-accounts',
+    DETACH_ACCOUNT: 'xrncal:auth:detach-account'
   },
   SYNC: {
-    TRIGGER_NOW: 'gone:sync:trigger-now',
-    GET_STATUS: 'gone:sync:get-status',
+    TRIGGER_NOW: 'xrncal:sync:trigger-now',
+    GET_STATUS: 'xrncal:sync:get-status',
     /** main -> renderer. The only push channel in the app; everything else is
      *  invoke/handle. Sent after a background sync that actually changed rows. */
-    CHANGED: 'gone:sync:changed'
+    CHANGED: 'xrncal:sync:changed'
   },
   CALENDAR: {
-    LIST: 'gone:calendar:list',
-    CREATE: 'gone:calendar:create',
-    UPDATE: 'gone:calendar:update',
-    DELETE: 'gone:calendar:delete'
+    LIST: 'xrncal:calendar:list',
+    CREATE: 'xrncal:calendar:create',
+    UPDATE: 'xrncal:calendar:update',
+    DELETE: 'xrncal:calendar:delete'
   },
   EVENT: {
-    QUERY_RANGE: 'gone:event:query-range',
-    GET_BY_ID: 'gone:event:get-by-id',
-    CREATE: 'gone:event:create',
-    UPDATE: 'gone:event:update',
-    DELETE: 'gone:event:delete',
-    MOVE: 'gone:event:move',
-    COPY: 'gone:event:copy',
-    UPDATE_SCOPE: 'gone:event:update-scope',
-    DELETE_SCOPE: 'gone:event:delete-scope',
-    UPSERT_EXCEPTION: 'gone:event:upsert-exception',
-    MATERIALIZE_LUNAR: 'gone:event:materialize-lunar',
-    DETACH_LUNAR: 'gone:event:detach-lunar',
-    SEARCH: 'gone:event:search',
-    SUGGEST_TITLES: 'gone:event:suggest-titles',
-    SHARE_ICS: 'gone:event:share-ics',
-    LIST_CONFLICTS: 'gone:event:list-conflicts',
-    RESOLVE_CONFLICT: 'gone:event:resolve-conflict'
+    QUERY_RANGE: 'xrncal:event:query-range',
+    GET_BY_ID: 'xrncal:event:get-by-id',
+    CREATE: 'xrncal:event:create',
+    UPDATE: 'xrncal:event:update',
+    DELETE: 'xrncal:event:delete',
+    MOVE: 'xrncal:event:move',
+    COPY: 'xrncal:event:copy',
+    UPDATE_SCOPE: 'xrncal:event:update-scope',
+    DELETE_SCOPE: 'xrncal:event:delete-scope',
+    UPSERT_EXCEPTION: 'xrncal:event:upsert-exception',
+    MATERIALIZE_LUNAR: 'xrncal:event:materialize-lunar',
+    DETACH_LUNAR: 'xrncal:event:detach-lunar',
+    SEARCH: 'xrncal:event:search',
+    SUGGEST_TITLES: 'xrncal:event:suggest-titles',
+    SHARE_ICS: 'xrncal:event:share-ics',
+    LIST_CONFLICTS: 'xrncal:event:list-conflicts',
+    RESOLVE_CONFLICT: 'xrncal:event:resolve-conflict'
   },
   ICS: {
-    IMPORT: 'gone:ics:import',
-    EXPORT: 'gone:ics:export'
+    IMPORT: 'xrncal:ics:import',
+    EXPORT: 'xrncal:ics:export'
   },
   MINI: {
-    OPEN_MAIN: 'gone:mini:open-main',
-    TOGGLE: 'gone:mini:toggle',
-    GET_UPCOMING: 'gone:mini:get-upcoming',
-    SET_ALWAYS_ON_TOP: 'gone:mini:set-always-on-top'
+    OPEN_MAIN: 'xrncal:mini:open-main',
+    TOGGLE: 'xrncal:mini:toggle',
+    GET_UPCOMING: 'xrncal:mini:get-upcoming',
+    SET_ALWAYS_ON_TOP: 'xrncal:mini:set-always-on-top'
   },
   HOLIDAYS: {
-    SUBSCRIBE: 'gone:holidays:subscribe',
-    UNSUBSCRIBE: 'gone:holidays:unsubscribe'
+    SUBSCRIBE: 'xrncal:holidays:subscribe',
+    UNSUBSCRIBE: 'xrncal:holidays:unsubscribe'
   }
 } as const
 
@@ -130,7 +130,7 @@ export interface ConnectCalDavInput {
   name?: string
 }
 
-export interface GoneAPI {
+export interface XrncalAPI {
   app: {
     getVersion: () => Promise<string>
     getLocale: () => Promise<AppLocale>

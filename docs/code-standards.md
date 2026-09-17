@@ -1,4 +1,4 @@
-# Gone Calendar — Code Standards
+# xrncal — Code Standards
 
 **Last updated:** 2026-08-18
 
@@ -21,7 +21,7 @@
 |-------|--------------------|
 | `src/main` | Node.js APIs, Electron main APIs, `src/shared` |
 | `src/preload` | Electron `contextBridge`, `ipcRenderer`, `src/shared` |
-| `src/renderer` | React, DOM APIs, `src/shared`, `window.gone` (IPC bridge) |
+| `src/renderer` | React, DOM APIs, `src/shared`, `window.xrncal` (IPC bridge) |
 | `src/shared` | Pure TypeScript only. No Node.js, no DOM, no Electron |
 
 **Never import main-process modules from the renderer.** IPC is the only bridge.
@@ -93,7 +93,7 @@ export function EventPill({ event, onClick }: EventPillProps) {
 ### Hooks
 
 - Custom hooks start with `use` and live in `src/renderer/src/hooks/`.
-- Hooks that call `window.gone.*` must handle errors gracefully and not throw to the render tree.
+- Hooks that call `window.xrncal.*` must handle errors gracefully and not throw to the render tree.
 
 ---
 

@@ -18,7 +18,7 @@ describe('database backup', () => {
   let db: ISqliteDatabase
 
   beforeEach(() => {
-    dir = mkdtempSync(join(tmpdir(), 'gone-backup-'))
+    dir = mkdtempSync(join(tmpdir(), 'xrncal-backup-'))
     db = createSqliteDriver(join(dir, 'source.sqlite'))
     runMigrations(db)
     seedDefaultData(db)
@@ -111,7 +111,7 @@ describe('database backup', () => {
   it('names snapshots so they sort chronologically and are filesystem-safe', () => {
     const name = defaultBackupFileName(new Date('2026-09-14T19:20:31.456Z'))
 
-    expect(name).toBe('gone-calendar-backup-2026-09-14T19-20-31.sqlite')
+    expect(name).toBe('xrncal-backup-2026-09-14T19-20-31.sqlite')
     expect(name).not.toMatch(/:/)
   })
 })

@@ -59,7 +59,7 @@ describe('showFriendlyError', () => {
 
   it('strips the Electron IPC wrapper so the copied text is the real message', () => {
     showFriendlyError(
-      new Error("Error invoking remote method 'gone:event:move': Error: Event not found: evt_1")
+      new Error("Error invoking remote method 'xrncal:event:move': Error: Event not found: evt_1")
     )
 
     expect(lastCall().description).toBe('Event not found: evt_1')

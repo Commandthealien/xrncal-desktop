@@ -1,4 +1,4 @@
-# Gone Calendar — Project Overview & Product Decision Record
+# xrncal — Project Overview & Product Decision Record
 
 **Status:** All 10 phases complete (R1 + R2 + R3 + Stretch)  
 **Last updated:** 2026-08-18  
@@ -8,7 +8,7 @@
 
 ## Product Summary
 
-Gone Calendar is a local-first desktop calendar for **Windows and Linux**, built from scratch with Electron, React, TypeScript, and Tailwind CSS. It targets the feature density of One Calendar (compact views, solid event pills, week numbers) while adding Vietnamese lunar date support and multi-provider sync.
+xrncal is a local-first desktop calendar for **Windows and Linux**, built from scratch with Electron, React, TypeScript, and Tailwind CSS. It targets the feature density of One Calendar (compact views, solid event pills, week numbers) while adding Vietnamese lunar date support and multi-provider sync.
 
 It is **not** a GNOME Calendar fork or patch. The previous GTK4/libadwaita/EDS plan was dropped and replaced by this greenfield Electron app.
 

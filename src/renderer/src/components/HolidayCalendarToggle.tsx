@@ -23,15 +23,15 @@ export const HolidayCalendarToggle: React.FC<HolidayCalendarToggleProps> = ({
   )
 
   const handleToggle = async (type: HolidayCalendarType) => {
-    if (!window.gone?.holidays) return
+    if (!window.xrncal?.holidays) return
     setLoadingType(type)
 
     try {
       const isSubscribed = type === 'vietnam' ? isVietnamSubscribed : isInternationalSubscribed
       if (isSubscribed) {
-        await window.gone.holidays.unsubscribe(type)
+        await window.xrncal.holidays.unsubscribe(type)
       } else {
-        await window.gone.holidays.subscribe(type)
+        await window.xrncal.holidays.subscribe(type)
       }
       onCalendarsChanged()
     } catch (err) {

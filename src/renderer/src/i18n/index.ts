@@ -4,7 +4,7 @@ import { initReactI18next } from 'react-i18next'
 export const resources = {
   en: {
     translation: {
-      appName: 'Gone Calendar',
+      appName: 'xrncal',
       common: {
         cancel: 'Cancel',
         copy: 'Copy',
@@ -247,7 +247,7 @@ export const resources = {
         title: 'Connect CalDAV',
         serverUrl: 'CalDAV server address (URL)',
         displayName: 'Account display name',
-        displayNameHint: 'Account name inside Gone Calendar',
+        displayNameHint: 'Account name inside xrncal',
         appPasswordRequired: 'Requires an app-specific password',
         username: 'Username',
         appleId: 'Apple ID (email)',
@@ -367,7 +367,7 @@ export const resources = {
   },
   vi: {
     translation: {
-      appName: 'Gone Calendar',
+      appName: 'xrncal',
       common: {
         cancel: 'Hủy',
         copy: 'Sao chép',
@@ -610,7 +610,7 @@ export const resources = {
         title: 'Kết nối CalDAV',
         serverUrl: 'Địa chỉ máy chủ CalDAV (URL)',
         displayName: 'Tên hiển thị tài khoản',
-        displayNameHint: 'Tên tài khoản trong Gone Calendar',
+        displayNameHint: 'Tên tài khoản trong xrncal',
         appPasswordRequired: 'Yêu cầu Mật khẩu dành riêng cho ứng dụng',
         username: 'Tên đăng nhập',
         appleId: 'Apple ID (Email)',

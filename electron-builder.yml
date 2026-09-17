@@ -1,5 +1,5 @@
-appId: app.gonecalendar.desktop
-productName: Gone Calendar
+appId: app.xrncal.desktop
+productName: xrncal
 directories:
   output: dist
   buildResources: build
@@ -19,7 +19,7 @@ nsis:
   allowToChangeInstallationDirectory: true
   createDesktopShortcut: always
   createStartMenuShortcut: true
-  shortcutName: Gone Calendar
+  shortcutName: xrncal
 
 linux:
   target:
@@ -28,5 +28,5 @@ linux:
         - x64
   category: Office;Calendar;
   synopsis: Modern desktop calendar with multi-provider sync
-  description: Gone Calendar desktop client for Windows and Linux
+  description: xrncal desktop client for Windows and Linux
   icon: resources/icon.png

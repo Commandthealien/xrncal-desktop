@@ -29,7 +29,7 @@ export function generateIcs(
   const lines: string[] = [
     'BEGIN:VCALENDAR',
     'VERSION:2.0',
-    'PRODID:-//Gone Calendar//Gone Calendar Desktop//EN',
+    'PRODID:-//xrncal//xrncal Desktop//EN',
     'CALSCALE:GREGORIAN',
     'METHOD:PUBLISH',
     `X-WR-CALNAME:${escapeIcsText(calendar.name)}`

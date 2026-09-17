@@ -597,11 +597,11 @@ export const EventEditorDialog: React.FC<EventEditorDialogProps> = ({
   const handleMaterializeLunar = async () => {
     const eventId = data?.occurrence?.eventId || data?.event?.id
     const targetId = materializeTargetId || writableCalendars[0]?.id
-    if (!eventId || !targetId || !window.gone?.events?.materializeLunar) return
+    if (!eventId || !targetId || !window.xrncal?.events?.materializeLunar) return
     setLunarBusy(true)
     try {
       const throughYear = DateTime.local().year + 10
-      const res = await window.gone.events.materializeLunar({
+      const res = await window.xrncal.events.materializeLunar({
         masterEventId: eventId,
         targetCalendarId: targetId,
         throughYear
@@ -623,10 +623,10 @@ export const EventEditorDialog: React.FC<EventEditorDialogProps> = ({
 
   const handleDetachLunar = async () => {
     const eventId = data?.occurrence?.eventId || data?.event?.id
-    if (!eventId || !window.gone?.events?.detachLunar) return
+    if (!eventId || !window.xrncal?.events?.detachLunar) return
     setLunarBusy(true)
     try {
-      const res = await window.gone.events.detachLunar({ masterEventId: eventId })
+      const res = await window.xrncal.events.detachLunar({ masterEventId: eventId })
       toast.success(res.count > 0 ? t('toast.lunarRemoved', { count: res.count }) : t('toast.lunarNoneToRemove'))
       if (res.count > 0) onDataChanged?.()
     } catch (err: any) {
@@ -638,9 +638,9 @@ export const EventEditorDialog: React.FC<EventEditorDialogProps> = ({
 
   const handleShare = async () => {
     const eventId = data?.occurrence?.eventId || data?.event?.id
-    if (!eventId || !window.gone?.events?.shareIcs) return
+    if (!eventId || !window.xrncal?.events?.shareIcs) return
     try {
-      const res = await window.gone.events.shareIcs(eventId)
+      const res = await window.xrncal.events.shareIcs(eventId)
       if (res.success) {
         setShareSuccess(true)
         toast.success(t('toast.icsCreated'))

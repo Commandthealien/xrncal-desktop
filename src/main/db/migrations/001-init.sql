@@ -1,4 +1,4 @@
--- Migration 001: Initial Schema for Gone Calendar
+-- Migration 001: Initial Schema for xrncal
 
 CREATE TABLE IF NOT EXISTS schema_migrations (
   version INTEGER PRIMARY KEY,

@@ -155,15 +155,15 @@ export const App: React.FC = () => {
   }, [currentView, anchorDate, listExpand, yearSpan, visibleRange.label])
 
   const loadCalendarsAndEvents = useCallback(async () => {
-    if (!window.gone?.calendars || !window.gone?.events) return
+    if (!window.xrncal?.calendars || !window.xrncal?.events) return
 
     try {
-      const cals = await window.gone.calendars.list()
+      const cals = await window.xrncal.calendars.list()
       setCalendars(cals)
 
       const activeCalIds = cals.filter((c) => c.isVisible).map((c) => c.id)
       if (activeCalIds.length > 0) {
-        const occs = await window.gone.events.queryRange(
+        const occs = await window.xrncal.events.queryRange(
           activeCalIds,
           queryRange.startUtc,
           queryRange.endUtc
@@ -179,9 +179,9 @@ export const App: React.FC = () => {
       console.error('Failed to load calendars or events:', err)
     }
 
-    if (window.gone?.events?.listConflicts) {
+    if (window.xrncal?.events?.listConflicts) {
       try {
-        setConflicts(await window.gone.events.listConflicts())
+        setConflicts(await window.xrncal.events.listConflicts())
       } catch (err) {
         console.error('Failed to load sync conflicts:', err)
       }
@@ -189,9 +189,9 @@ export const App: React.FC = () => {
   }, [queryRange.startUtc, queryRange.endUtc])
 
   const handleResolveConflict = async (eventId: string, resolution: 'keepMine' | 'keepTheirs') => {
-    if (!window.gone?.events?.resolveConflict) return
+    if (!window.xrncal?.events?.resolveConflict) return
     try {
-      await window.gone.events.resolveConflict(eventId, resolution)
+      await window.xrncal.events.resolveConflict(eventId, resolution)
       setConflicts((prev) => prev.filter((c) => c.eventId !== eventId))
     } catch (err: any) {
       showFriendlyError(err, t('toast.conflictResolveFailed'))
@@ -210,7 +210,7 @@ export const App: React.FC = () => {
   // asked for. Both gesture hooks mark `is-dnd-active` on <body> for exactly as
   // long as a drag or resize is live, so the reload waits for it to clear.
   useEffect(() => {
-    if (!window.gone?.sync?.onChanged) return
+    if (!window.xrncal?.sync?.onChanged) return
 
     let pending = false
     const isGestureActive = (): boolean => document.body.classList.contains('is-dnd-active')
@@ -226,7 +226,7 @@ export const App: React.FC = () => {
     const observer = new MutationObserver(drain)
     observer.observe(document.body, { attributes: true, attributeFilter: ['class'] })
 
-    const unsubscribe = window.gone.sync.onChanged(() => {
+    const unsubscribe = window.xrncal.sync.onChanged(() => {
       pending = true
       drain()
     })
@@ -246,7 +246,7 @@ export const App: React.FC = () => {
       /** Undefined keeps the occurrence's current all-day-ness. */
       targetAllDay?: boolean
     ) => {
-      if (!window.gone?.events) return
+      if (!window.xrncal?.events) return
 
       const sourceCal = calendars.find((c) => c.id === occ.calendarId)
       if (sourceCal?.isReadOnly && !isCopy) {
@@ -260,7 +260,7 @@ export const App: React.FC = () => {
           // duplicate: no recurrence, no multi-day span, and none of the
           // original's notes, location or meeting link. Its length is kept.
           const range = singleDayRange(targetStart, targetEnd, dragSnapMinutes)
-          await window.gone.events.copy({
+          await window.xrncal.events.copy({
             sourceEventId: occ.eventId,
             dtStartUtc: range.start.toUTC().toISO()!,
             dtEndUtc: range.end.toUTC().toISO()!,
@@ -272,7 +272,7 @@ export const App: React.FC = () => {
             allDay: targetAllDay === undefined ? occ.allDay : targetAllDay
           })
         } else if (occ.isRecurring) {
-          await window.gone.events.updateScope({
+          await window.xrncal.events.updateScope({
             masterEventId: occ.eventId,
             originalStartUtc: occ.originalStartUtc || occ.startUtc,
             scope: 'this',
@@ -290,7 +290,7 @@ export const App: React.FC = () => {
             }
           })
         } else {
-          await window.gone.events.move({
+          await window.xrncal.events.move({
             eventId: occ.eventId,
             dtStartUtc: targetStart.toUTC().toISO()!,
             dtEndUtc: targetEnd.toUTC().toISO()!,
@@ -417,10 +417,10 @@ export const App: React.FC = () => {
 
   useEffect(() => {
     const initApp = async (): Promise<void> => {
-      if (window.gone?.app) {
+      if (window.xrncal?.app) {
         try {
-          const version = await window.gone.app.getVersion()
-          const plat = await window.gone.app.getPlatform()
+          const version = await window.xrncal.app.getVersion()
+          const plat = await window.xrncal.app.getPlatform()
           setAppVersion(version || '0.1.0')
           setPlatform(plat || 'win32')
         } catch (err) {
@@ -428,9 +428,9 @@ export const App: React.FC = () => {
         }
       }
 
-      if (window.gone?.settings) {
+      if (window.xrncal?.settings) {
         try {
-          const settings = await window.gone.settings.getAll()
+          const settings = await window.xrncal.settings.getAll()
           setShowLunar(settings.showLunar ?? true)
           setShowWeekNumbers(settings.showWeekNumbers ?? true)
           setShowMiniCalendar(settings.showMiniCalendar ?? false)
@@ -444,7 +444,7 @@ export const App: React.FC = () => {
           setFirstDayOfWeek(settings.firstDayOfWeek ?? 1)
           const loc = settings.locale === 'vi' || settings.locale === 'en' ? settings.locale : 'en'
           if (loc !== i18n.language) await i18n.changeLanguage(loc)
-          if (window.gone.app?.setLocale) await window.gone.app.setLocale(loc)
+          if (window.xrncal.app?.setLocale) await window.xrncal.app.setLocale(loc)
         } catch (err) {
           console.warn('Failed to load settings:', err)
         }
@@ -520,75 +520,75 @@ export const App: React.FC = () => {
   const setLanguage = async (next: AppLocale): Promise<void> => {
     if (next === i18n.language) return
     await i18n.changeLanguage(next)
-    if (window.gone?.settings) await window.gone.settings.set('locale', next)
-    if (window.gone?.app?.setLocale) await window.gone.app.setLocale(next)
+    if (window.xrncal?.settings) await window.xrncal.settings.set('locale', next)
+    if (window.xrncal?.app?.setLocale) await window.xrncal.app.setLocale(next)
   }
 
   const toggleLanguage = () => setLanguage(i18n.language === 'vi' ? 'en' : 'vi')
 
   const toggleLunar = async (enabled: boolean) => {
     setShowLunar(enabled)
-    if (window.gone?.settings) await window.gone.settings.set('showLunar', enabled)
+    if (window.xrncal?.settings) await window.xrncal.settings.set('showLunar', enabled)
   }
 
   const toggleWeekNumbers = async (enabled: boolean) => {
     setShowWeekNumbers(enabled)
-    if (window.gone?.settings) await window.gone.settings.set('showWeekNumbers', enabled)
+    if (window.xrncal?.settings) await window.xrncal.settings.set('showWeekNumbers', enabled)
   }
 
   const toggleAutoHideHeader = async (enabled: boolean) => {
     setAutoHideHeader(enabled)
     if (!enabled) showHeader()
-    if (window.gone?.settings) await window.gone.settings.set('autoHideHeader', enabled)
+    if (window.xrncal?.settings) await window.xrncal.settings.set('autoHideHeader', enabled)
   }
 
   const changeTimeFormat = async (value: DisplayPreferences['timeFormat']) => {
     setTimeFormat(value)
-    if (window.gone?.settings) await window.gone.settings.set('timeFormat', value)
+    if (window.xrncal?.settings) await window.xrncal.settings.set('timeFormat', value)
   }
 
   const changeDayStartHour = async (value: number) => {
     setDayStartHour(value)
-    if (window.gone?.settings) await window.gone.settings.set('dayStartHour', value)
+    if (window.xrncal?.settings) await window.xrncal.settings.set('dayStartHour', value)
   }
 
   const changeHourBlockSize = async (value: DisplayPreferences['hourBlockSize']) => {
     setHourBlockSize(value)
-    if (window.gone?.settings) await window.gone.settings.set('hourBlockSize', value)
+    if (window.xrncal?.settings) await window.xrncal.settings.set('hourBlockSize', value)
   }
 
   const changeSecondaryTimezone = async (value: string) => {
     setSecondaryTimezone(value)
-    if (window.gone?.settings) await window.gone.settings.set('secondaryTimezone', value)
+    if (window.xrncal?.settings) await window.xrncal.settings.set('secondaryTimezone', value)
   }
 
   const changeDragSnapMinutes = async (next: AppSettings['dragSnapMinutes']) => {
     setDragSnapMinutes(next)
-    if (window.gone?.settings) await window.gone.settings.set('dragSnapMinutes', next)
+    if (window.xrncal?.settings) await window.xrncal.settings.set('dragSnapMinutes', next)
   }
 
   const toggleSuggestionShowCalendarName = async (next: boolean) => {
     setSuggestionShowCalendarName(next)
-    if (window.gone?.settings)
-      await window.gone.settings.set('suggestionShowCalendarName', next)
+    if (window.xrncal?.settings)
+      await window.xrncal.settings.set('suggestionShowCalendarName', next)
   }
 
   const toggleMiniCalendar = async (enabled: boolean) => {
     setShowMiniCalendar(enabled)
-    if (window.gone?.settings) await window.gone.settings.set('showMiniCalendar', enabled)
+    if (window.xrncal?.settings) await window.xrncal.settings.set('showMiniCalendar', enabled)
   }
 
   const toggleCalendarVisibility = async (cal: Calendar) => {
-    if (window.gone?.calendars) {
-      const updated = await window.gone.calendars.update(cal.id, { isVisible: !cal.isVisible })
+    if (window.xrncal?.calendars) {
+      const updated = await window.xrncal.calendars.update(cal.id, { isVisible: !cal.isVisible })
       setCalendars((prev) => prev.map((c) => (c.id === updated.id ? updated : c)))
       await loadCalendarsAndEvents()
     }
   }
 
   const changeCalendarColor = async (cal: Calendar, color: string) => {
-    if (!window.gone?.calendars) return
-    const updated = await window.gone.calendars.update(cal.id, { color })
+    if (!window.xrncal?.calendars) return
+    const updated = await window.xrncal.calendars.update(cal.id, { color })
     setCalendars((prev) => prev.map((c) => (c.id === updated.id ? updated : c)))
     setColorPickerCalId(null)
     await loadCalendarsAndEvents()
@@ -601,11 +601,11 @@ export const App: React.FC = () => {
     isRecurringOccurrence?: boolean
     input: CreateEventInput | UpdateEventInput
   }) => {
-    if (!window.gone?.events) return
+    if (!window.xrncal?.events) return
 
     try {
       if (payload.isNew) {
-        await window.gone.events.create(payload.input as CreateEventInput)
+        await window.xrncal.events.create(payload.input as CreateEventInput)
         setIsEditorOpen(false)
         await loadCalendarsAndEvents()
       } else if (payload.eventId) {
@@ -619,7 +619,7 @@ export const App: React.FC = () => {
             input: payload.input as UpdateEventInput
           })
         } else {
-          await window.gone.events.update(payload.eventId, payload.input as UpdateEventInput)
+          await window.xrncal.events.update(payload.eventId, payload.input as UpdateEventInput)
           setIsEditorOpen(false)
           await loadCalendarsAndEvents()
         }
@@ -636,7 +636,7 @@ export const App: React.FC = () => {
     /** Middle-click asks for no prompt: the gesture is already the decision. */
     options?: { confirm?: boolean; title?: string }
   ) => {
-    if (!window.gone?.events) return
+    if (!window.xrncal?.events) return
 
     const shouldPrompt = options?.confirm !== false
     const done = async () => {
@@ -652,7 +652,7 @@ export const App: React.FC = () => {
         // The scope prompt asks a question the gesture has already answered, and
         // 'this' is both the literal reading and the least destructive one.
         try {
-          await window.gone.events.deleteScope({
+          await window.xrncal.events.deleteScope({
             masterEventId: eventId,
             originalStartUtc: occurrenceStartUtc,
             scope: 'this'
@@ -677,7 +677,7 @@ export const App: React.FC = () => {
     if (shouldPrompt && !confirm(t('toast.confirmDelete'))) return
 
     try {
-      await window.gone.events.delete(eventId)
+      await window.xrncal.events.delete(eventId)
       await done()
     } catch (err: any) {
       showFriendlyError(err, t('toast.deleteFailed'))
@@ -685,18 +685,18 @@ export const App: React.FC = () => {
   }
 
   const handleConfirmRecurringScope = async (scope: RecurringEditScope) => {
-    if (!pendingRecurringScope || !window.gone?.events) return
+    if (!pendingRecurringScope || !window.xrncal?.events) return
 
     try {
       if (pendingRecurringScope.action === 'edit' && pendingRecurringScope.input) {
-        await window.gone.events.updateScope({
+        await window.xrncal.events.updateScope({
           masterEventId: pendingRecurringScope.eventId,
           originalStartUtc: pendingRecurringScope.occurrenceStartUtc,
           scope,
           updateInput: pendingRecurringScope.input
         })
       } else if (pendingRecurringScope.action === 'delete') {
-        await window.gone.events.deleteScope({
+        await window.xrncal.events.deleteScope({
           masterEventId: pendingRecurringScope.eventId,
           originalStartUtc: pendingRecurringScope.occurrenceStartUtc,
           scope
@@ -736,7 +736,7 @@ export const App: React.FC = () => {
   )
 
   const handleDropMove = async (drop: PendingDropAction) => {
-    if (!window.gone?.events) return
+    if (!window.xrncal?.events) return
 
     const targetCalId = drop.targetCalendarId || drop.occurrence.calendarId
     const targetCal = calendars.find((c) => c.id === targetCalId)
@@ -764,7 +764,7 @@ export const App: React.FC = () => {
         return
       }
 
-      await window.gone.events.move({
+      await window.xrncal.events.move({
         eventId: drop.occurrence.eventId,
         dtStartUtc: drop.targetStart.toUTC().toISO()!,
         dtEndUtc: drop.targetEnd.toUTC().toISO()!,
@@ -784,7 +784,7 @@ export const App: React.FC = () => {
   }
 
   const handleDropCopy = async (drop: PendingDropAction, copyInstanceOnly?: boolean) => {
-    if (!window.gone?.events) return
+    if (!window.xrncal?.events) return
     try {
       // "Copy whole series" is asking for a duplicate, so it keeps everything.
       // Every other copy is a new event that shares a name: no recurrence, no
@@ -794,7 +794,7 @@ export const App: React.FC = () => {
         ? singleDayRange(drop.targetStart, drop.targetEnd, dragSnapMinutes)
         : { start: drop.targetStart, end: drop.targetEnd }
 
-      await window.gone.events.copy({
+      await window.xrncal.events.copy({
         sourceEventId: drop.occurrence.eventId,
         dtStartUtc: range.start.toUTC().toISO()!,
         dtEndUtc: range.end.toUTC().toISO()!,

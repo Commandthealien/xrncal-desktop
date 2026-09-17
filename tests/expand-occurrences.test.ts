@@ -6,7 +6,7 @@ describe('expandOccurrences', () => {
   const baseEvent: CalendarEvent = {
     id: 'evt-1',
     calendarId: 'cal-1',
-    uid: 'uid-1@gone.calendar',
+    uid: 'uid-1@xrncal.calendar',
     title: 'Team Standup',
     dtStartUtc: '2026-08-03T09:00:00.000Z',
     dtEndUtc: '2026-08-03T09:30:00.000Z',

@@ -1,17 +1,17 @@
 import { describe, it, expect } from 'vitest'
-import { IPC_CHANNELS, type AppLocale, type GoneAPI } from '../src/shared/ipc-contract'
+import { IPC_CHANNELS, type AppLocale, type XrncalAPI } from '../src/shared/ipc-contract'
 
 describe('IPC Channels and Contracts', () => {
   it('should define structured and valid IPC channels', () => {
-    expect(IPC_CHANNELS.APP.GET_VERSION).toBe('gone:app:get-version')
-    expect(IPC_CHANNELS.APP.GET_LOCALE).toBe('gone:app:get-locale')
-    expect(IPC_CHANNELS.APP.SET_LOCALE).toBe('gone:app:set-locale')
-    expect(IPC_CHANNELS.APP.GET_PLATFORM).toBe('gone:app:get-platform')
+    expect(IPC_CHANNELS.APP.GET_VERSION).toBe('xrncal:app:get-version')
+    expect(IPC_CHANNELS.APP.GET_LOCALE).toBe('xrncal:app:get-locale')
+    expect(IPC_CHANNELS.APP.SET_LOCALE).toBe('xrncal:app:set-locale')
+    expect(IPC_CHANNELS.APP.GET_PLATFORM).toBe('xrncal:app:get-platform')
   })
 
   it('should enforce channels prefix naming convention', () => {
     Object.values(IPC_CHANNELS.APP).forEach((channel) => {
-      expect(channel.startsWith('gone:app:')).toBe(true)
+      expect(channel.startsWith('xrncal:app:')).toBe(true)
     })
   })
 
@@ -21,9 +21,9 @@ describe('IPC Channels and Contracts', () => {
     expect(validLocales).toContain('en')
   })
 
-  it('should fulfill GoneAPI contract mock implementation', async () => {
+  it('should fulfill XrncalAPI contract mock implementation', async () => {
     let mockLocale: AppLocale = 'vi'
-    const mockGone: GoneAPI = {
+    const mockXrncal: XrncalAPI = {
       app: {
         getVersion: async () => '0.1.0',
         getLocale: async () => mockLocale,
@@ -192,13 +192,13 @@ describe('IPC Channels and Contracts', () => {
       }
     }
 
-    expect(await mockGone.app.getVersion()).toBe('0.1.0')
-    expect(await mockGone.app.getLocale()).toBe('vi')
-    expect(await mockGone.app.setLocale('en')).toBe(true)
-    expect(await mockGone.app.getLocale()).toBe('en')
-    expect(await mockGone.app.getPlatform()).toBe('win32')
-    expect(await mockGone.calendars.list()).toEqual([])
-    expect(await mockGone.events.queryRange([], '', '')).toEqual([])
+    expect(await mockXrncal.app.getVersion()).toBe('0.1.0')
+    expect(await mockXrncal.app.getLocale()).toBe('vi')
+    expect(await mockXrncal.app.setLocale('en')).toBe(true)
+    expect(await mockXrncal.app.getLocale()).toBe('en')
+    expect(await mockXrncal.app.getPlatform()).toBe('win32')
+    expect(await mockXrncal.calendars.list()).toEqual([])
+    expect(await mockXrncal.events.queryRange([], '', '')).toEqual([])
   })
 })
 

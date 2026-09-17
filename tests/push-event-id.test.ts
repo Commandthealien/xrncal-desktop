@@ -20,7 +20,7 @@ describe('outgoing provider payloads', () => {
   const localEvent = {
     id: 'evt_1789396326299_uqqwff',
     calendarId: 'cal-1',
-    uid: 'evt_1789396326299_uqqwff@gone.calendar',
+    uid: 'evt_1789396326299_uqqwff@xrncal.calendar',
     title: 'Pizze Baby',
     notes: null,
     location: null,

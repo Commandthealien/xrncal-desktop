@@ -168,7 +168,7 @@ export class GoogleOAuthManager {
           res.end(`
             <!DOCTYPE html>
             <html>
-              <head><meta charset="utf-8"><title>Gone Calendar Auth</title></head>
+              <head><meta charset="utf-8"><title>xrncal Auth</title></head>
               <body style="font-family:system-ui,sans-serif;text-align:center;padding:40px;background:#2b2d31;color:#dbdee1;">
                 <h2 style="color:#6366f1;">${mt('oauth.google.success')}</h2>
                 <p style="color:#94a3b8;">${mt('oauth.account', { detail: `${userInfo.email} (${userInfo.name})` })}</p>

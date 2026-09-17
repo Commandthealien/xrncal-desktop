@@ -12,13 +12,13 @@ import { app } from 'electron'
  * MICROSOFT_CLIENT_ID, MICROSOFT_CLIENT_SECRET.
  */
 export function credentialsFilePath(): string {
-  return join(app.getPath('userData'), 'gone-calendar.env')
+  return join(app.getPath('userData'), 'xrncal.env')
 }
 
 export function loadCredentialsFile(): void {
   const candidates = [
     credentialsFilePath(),
-    join(dirname(app.getPath('exe')), 'gone-calendar.env'),
+    join(dirname(app.getPath('exe')), 'xrncal.env'),
     join(process.cwd(), '.env')
   ]
 

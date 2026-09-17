@@ -1,17 +1,17 @@
 {
-  "name": "gone-calendar",
+  "name": "xrncal",
   "version": "0.1.0",
   "description": "Desktop Calendar for Windows and Linux with modern UX and multi-provider sync",
   "private": true,
   "license": "MIT",
-  "author": "Gone Calendar Team",
-  "homepage": "https://github.com/Deocomate/gone-calendar-electron#readme",
+  "author": "Xernnn",
+  "homepage": "https://github.com/Xernnn/xrncal-desktop#readme",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/Deocomate/gone-calendar-electron.git"
+    "url": "git+https://github.com/Xernnn/xrncal-desktop.git"
   },
   "bugs": {
-    "url": "https://github.com/Deocomate/gone-calendar-electron/issues"
+    "url": "https://github.com/Xernnn/xrncal-desktop/issues"
   },
   "main": "./out/main/index.js",
   "scripts": {

@@ -2,6 +2,7 @@ import { app, BrowserWindow, shell } from 'electron'
 import { join } from 'node:path'
 import { registerIpcHandlers } from './ipc'
 import { loadCredentialsFile } from './load-credentials'
+import { adoptLegacyUserDataForApp } from './adopt-legacy-userdata'
 import { initDatabase, closeDatabase } from './db/database'
 import { setupTray } from './tray'
 import { registerMiniIpcHandlers } from './mini-window'
@@ -29,7 +30,7 @@ if (!gotTheLock) {
       show: false,
       autoHideMenuBar: true,
       backgroundColor: initialBg,
-      title: 'Gone Calendar',
+      title: 'xrncal',
       webPreferences: {
         preload: join(__dirname, '../preload/index.js'),
         sandbox: true,
@@ -101,6 +102,7 @@ if (!gotTheLock) {
   })
 
   app.whenReady().then(() => {
+    adoptLegacyUserDataForApp()
     loadCredentialsFile()
 
     try {

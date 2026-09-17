@@ -1,4 +1,4 @@
-# Gone Calendar Design Guidelines
+# xrncal Design Guidelines
 
 Visual language for the desktop renderer. Minimalist Notion + Notion Calendar aesthetic: warm, clean off-white / deep charcoal canvas, soft pastel event palette, quiet hairline borders, and disciplined corner radius (<5px on controls and sidebar).
 

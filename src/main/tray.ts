@@ -24,7 +24,7 @@ export function setupTray(mainWindow: BrowserWindow): Tray {
   loadMainLocaleFromDb()
   const icon = createCalendarTrayIcon()
   trayInstance = new Tray(icon)
-  trayInstance.setToolTip('Gone Calendar')
+  trayInstance.setToolTip('xrncal')
 
   const contextMenu = Menu.buildFromTemplate([
     {

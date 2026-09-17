@@ -1,4 +1,4 @@
-# Gone Calendar — Codebase Summary
+# xrncal — Codebase Summary
 
 **Last updated:** 2026-08-31  
 **Version:** 0.1.0  
@@ -9,7 +9,7 @@
 ## Directory Map
 
 ```
-gone-calendar/
+xrncal/
 ├── src/
 │   ├── main/                    # Electron main process
 │   │   ├── index.ts             # App lifecycle, window creation, single-instance lock
@@ -46,7 +46,7 @@ gone-calendar/
 │   │   ├── secure-store.ts      # safeStorage wrapper for OAuth tokens and CalDAV credentials
 │   │   └── types/               # Third-party type stubs (ical.js)
 │   ├── preload/
-│   │   ├── index.ts             # contextBridge: exposes window.gone API (GoneAPI typed)
+│   │   ├── index.ts             # contextBridge: exposes window.xrncal API (XrncalAPI typed)
 │   │   └── index.d.ts           # TypeScript declarations for preload
 │   ├── renderer/
 │   │   └── src/
@@ -99,7 +99,7 @@ gone-calendar/
 │       ├── theme-mode.ts        # ThemeMode enum
 │       ├── mini-calendar-grid.ts # Grid computation utilities
 │       ├── visible-range.ts     # Visible date range helpers
-│       └── ipc-contract.ts      # IPC_CHANNELS constants and GoneAPI interface
+│       └── ipc-contract.ts      # IPC_CHANNELS constants and XrncalAPI interface
 ├── tests/                       # Vitest unit tests (371 tests / 44 files)
 │   └── stubs/electron.ts        # `electron` module stub for main-process tests
 ├── docs/
@@ -111,7 +111,7 @@ gone-calendar/
 │   ├── code-standards.md
 │   └── journals/                # Per-phase implementation journals
 └── plans/
-    └── 260818-2006-electron-gone-calendar-rebuild/
+    └── 260818-2006-electron-xrncal-rebuild/
         ├── plan.md              # Master plan (all 10 phases)
         └── phase-01 … phase-10  # Phase detail documents
 ```
@@ -140,9 +140,9 @@ gone-calendar/
 
 ### `src/preload`
 
-`index.ts` exposes `window.gone` via `contextBridge`. Sandbox + contextIsolation enabled. Renderer has no direct Node.js access.
+`index.ts` exposes `window.xrncal` via `contextBridge`. Sandbox + contextIsolation enabled. Renderer has no direct Node.js access.
 
-**`window.gone` API namespaces:**
+**`window.xrncal` API namespaces:**
 
 | Namespace | Methods |
 |-----------|---------|
@@ -196,7 +196,7 @@ for display in `timed-event-segments.ts`.
 
 TypeScript contracts shared between main and renderer via `@shared/*` path alias. Contains no runtime DOM or Node.js dependencies.
 
-Key types: `CalendarEvent`, `ExpandedOccurrence`, `Calendar`, `CalendarAccount`, `TaskItem`, `GoneAPI`, `IPC_CHANNELS`.
+Key types: `CalendarEvent`, `ExpandedOccurrence`, `Calendar`, `CalendarAccount`, `TaskItem`, `XrncalAPI`, `IPC_CHANNELS`.
 
 ---
 

@@ -34,11 +34,11 @@ export const AccountManagerModal: React.FC<AccountManagerModalProps> = ({
   const [isCalDavModalOpen, setIsCalDavModalOpen] = useState<boolean>(false)
 
   const loadData = async () => {
-    if (!window.gone?.auth || !window.gone?.sync) return
+    if (!window.xrncal?.auth || !window.xrncal?.sync) return
     try {
-      const accList = await window.gone.auth.listAccounts()
+      const accList = await window.xrncal.auth.listAccounts()
       setAccounts(accList)
-      const status = await window.gone.sync.getStatus()
+      const status = await window.xrncal.sync.getStatus()
       setSyncStatus(status)
     } catch (err) {
       console.error('Failed to load accounts/sync status:', err)
@@ -54,11 +54,11 @@ export const AccountManagerModal: React.FC<AccountManagerModalProps> = ({
   if (!isOpen) return null
 
   const handleConnectGoogle = async () => {
-    if (!window.gone?.auth) return
+    if (!window.xrncal?.auth) return
     setIsLoading(true)
     setActionMessage(t('accounts.openingGoogle'))
     try {
-      const res = await window.gone.auth.connectGoogle()
+      const res = await window.xrncal.auth.connectGoogle()
       if (res.success) {
         setActionMessage(t('accounts.googleConnected'))
         await loadData()
@@ -75,11 +75,11 @@ export const AccountManagerModal: React.FC<AccountManagerModalProps> = ({
   }
 
   const handleConnectMicrosoft = async () => {
-    if (!window.gone?.auth) return
+    if (!window.xrncal?.auth) return
     setIsLoading(true)
     setActionMessage(t('accounts.openingMicrosoft'))
     try {
-      const res = await window.gone.auth.connectMicrosoft()
+      const res = await window.xrncal.auth.connectMicrosoft()
       if (res.success) {
         setActionMessage(t('accounts.microsoftConnected'))
         await loadData()
@@ -97,15 +97,15 @@ export const AccountManagerModal: React.FC<AccountManagerModalProps> = ({
 
   const handleDisconnect = async (acc: CalendarAccount) => {
     if (!confirm(t('accounts.disconnectConfirm', { name: acc.name }))) return
-    if (!window.gone?.auth) return
+    if (!window.xrncal?.auth) return
 
     try {
       if (acc.type === 'google') {
-        await window.gone.auth.disconnectGoogle(acc.id)
+        await window.xrncal.auth.disconnectGoogle(acc.id)
       } else if (acc.type === 'graph') {
-        await window.gone.auth.disconnectMicrosoft(acc.id)
+        await window.xrncal.auth.disconnectMicrosoft(acc.id)
       } else if (acc.type === 'caldav') {
-        await window.gone.auth.disconnectCalDav(acc.id)
+        await window.xrncal.auth.disconnectCalDav(acc.id)
       }
       await loadData()
       onAccountsChanged()
@@ -116,11 +116,11 @@ export const AccountManagerModal: React.FC<AccountManagerModalProps> = ({
   }
 
   const handleDetach = async (acc: CalendarAccount) => {
-    if (!window.gone?.auth) return
+    if (!window.xrncal?.auth) return
     if (!confirm(t('accounts.detachConfirm', { name: acc.name }))) return
 
     try {
-      const result = await window.gone.auth.detachAccount(acc.id)
+      const result = await window.xrncal.auth.detachAccount(acc.id)
       if (!result.success) {
         showFriendlyError(new Error(result.message || ''), t('accounts.detachFailed'))
         return
@@ -139,11 +139,11 @@ export const AccountManagerModal: React.FC<AccountManagerModalProps> = ({
   }
 
   const handleSyncNow = async () => {
-    if (!window.gone?.sync) return
+    if (!window.xrncal?.sync) return
     setIsLoading(true)
     setActionMessage(t('accounts.syncingNow'))
     try {
-      const res = await window.gone.sync.triggerNow()
+      const res = await window.xrncal.sync.triggerNow()
       setActionMessage(res.message || t('accounts.syncDone'))
       await loadData()
       onAccountsChanged()

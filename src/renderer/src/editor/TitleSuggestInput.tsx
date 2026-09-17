@@ -73,7 +73,7 @@ export const TitleSuggestInput: React.FC<TitleSuggestInputProps> = ({
     let cancelled = false
     const timer = setTimeout(async () => {
       try {
-        const res = await window.gone?.events?.suggestTitles?.({
+        const res = await window.xrncal?.events?.suggestTitles?.({
           query: value,
           targetStartUtc,
           targetAllDay,

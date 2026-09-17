@@ -69,7 +69,7 @@ export const CalDavConnectModal: React.FC<CalDavConnectModalProps> = ({
       return
     }
 
-    if (!window.gone?.auth?.connectCalDav) {
+    if (!window.xrncal?.auth?.connectCalDav) {
       setErrorMsg('CalDAV API ' + t('caldav.unavailable'))
       return
     }
@@ -87,7 +87,7 @@ export const CalDavConnectModal: React.FC<CalDavConnectModalProps> = ({
         name: displayName.trim() || `${provider.toUpperCase()} (${username.trim()})`
       }
 
-      const res = await window.gone.auth.connectCalDav(input)
+      const res = await window.xrncal.auth.connectCalDav(input)
 
       if (res.success) {
         setSuccessMsg(t('caldav.connected'))

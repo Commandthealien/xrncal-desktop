@@ -1,5 +1,5 @@
 ---
-title: Gone Calendar — User Requirements Document
+title: xrncal — User Requirements Document
 status: approved
 created: 2026-08-18
 replaces: GNOME Calendar C/GTK modification plan
@@ -7,7 +7,7 @@ platform: Windows, Linux
 stack: Electron, React, Vite, TypeScript
 ---
 
-# Gone Calendar — User Requirements Document
+# xrncal — User Requirements Document
 
 Desktop calendar for Windows and Linux. Product target is One Calendar (Code Spark / onecalendar.nl) behavior and density, plus Vietnamese lunar dates. **New app.** Not a fork or patch of GNOME Calendar.
 
@@ -17,7 +17,7 @@ This document supersedes the previous `docs/urd.md` (GTK4 / libadwaita / Evoluti
 
 People who live on Windows and Linux need one window for Google, Microsoft 365, and CalDAV (iCloud, Nextcloud, Synology, …). GNOME Calendar is tied to the GNOME stack. One Calendar is the UX reference but has no Linux app and no Vietnamese lunar calendar.
 
-Gone Calendar is a from-scratch Electron desktop client: local-first store, provider adapters, custom calendar views.
+xrncal is a from-scratch Electron desktop client: local-first store, provider adapters, custom calendar views.
 
 ## 2. Users
 

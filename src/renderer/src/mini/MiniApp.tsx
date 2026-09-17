@@ -18,8 +18,8 @@ export const MiniApp: React.FC = () => {
   const loadData = async () => {
     setIsLoading(true)
     try {
-      if (window.gone?.mini?.getUpcoming) {
-        const res = await window.gone.mini.getUpcoming(15)
+      if (window.xrncal?.mini?.getUpcoming) {
+        const res = await window.xrncal.mini.getUpcoming(15)
         setOccurrences(res.occurrences || [])
       }
     } catch (err) {
@@ -34,7 +34,7 @@ export const MiniApp: React.FC = () => {
     const interval = setInterval(loadData, 60000)
     const loadTheme = async () => {
       try {
-        const settings = await window.gone?.settings?.getAll()
+        const settings = await window.xrncal?.settings?.getAll()
         const mode = ((settings?.theme as ThemeMode) || DEFAULT_APP_SETTINGS.theme) as ThemeMode
         const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches
         applyDocumentTheme(shouldUseDarkClass(mode, prefersDark))
@@ -50,16 +50,16 @@ export const MiniApp: React.FC = () => {
   }, [])
 
   const handleToggleAlwaysOnTop = async () => {
-    if (window.gone?.mini?.setAlwaysOnTop) {
+    if (window.xrncal?.mini?.setAlwaysOnTop) {
       const next = !isAlwaysOnTop
-      const res = await window.gone.mini.setAlwaysOnTop(next)
+      const res = await window.xrncal.mini.setAlwaysOnTop(next)
       setIsAlwaysOnTop(res)
     }
   }
 
   const handleOpenMain = async () => {
-    if (window.gone?.mini?.openMain) {
-      await window.gone.mini.openMain()
+    if (window.xrncal?.mini?.openMain) {
+      await window.xrncal.mini.openMain()
     }
   }
 
@@ -94,7 +94,7 @@ export const MiniApp: React.FC = () => {
       >
         <div className="flex items-center gap-2">
           <div className="h-2 w-2 rounded-full bg-accent" />
-          <span className="text-xs font-semibold">Gone Calendar</span>
+          <span className="text-xs font-semibold">xrncal</span>
         </div>
 
         <div

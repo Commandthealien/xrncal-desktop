@@ -62,8 +62,8 @@ export const AppearanceSettings: React.FC<AppearanceSettingsProps> = ({
   const [bgBlur, setBgBlur] = useState(8)
 
   useEffect(() => {
-    if (!window.gone?.settings) return
-    window.gone.settings.getAll().then((st: any) => {
+    if (!window.xrncal?.settings) return
+    window.xrncal.settings.getAll().then((st: any) => {
       if (st.themeAccent) setAccentColor(st.themeAccent)
       if (st.themeCustomBg !== undefined) setCustomBgUrl(st.themeCustomBg)
       if (st.themeOverlayOpacity !== undefined) setBgOverlayOpacity(st.themeOverlayOpacity)
@@ -82,11 +82,11 @@ export const AppearanceSettings: React.FC<AppearanceSettingsProps> = ({
     setBgOverlayOpacity(config.opacity)
     setBgBlur(config.blur)
 
-    if (window.gone?.settings) {
-      await window.gone.settings.set('themeAccent', config.accent)
-      await window.gone.settings.set('themeCustomBg', config.bgUrl)
-      await window.gone.settings.set('themeOverlayOpacity', config.opacity)
-      await window.gone.settings.set('themeBlur', config.blur)
+    if (window.xrncal?.settings) {
+      await window.xrncal.settings.set('themeAccent', config.accent)
+      await window.xrncal.settings.set('themeCustomBg', config.bgUrl)
+      await window.xrncal.settings.set('themeOverlayOpacity', config.opacity)
+      await window.xrncal.settings.set('themeBlur', config.blur)
     }
 
     onThemeChanged({
@@ -188,8 +188,8 @@ export const AppearanceSettings: React.FC<AppearanceSettingsProps> = ({
             type="button"
             className="gc-btn shrink-0"
             onClick={async () => {
-              if (!window.gone?.app?.pickBackgroundImage) return
-              const result = await window.gone.app.pickBackgroundImage()
+              if (!window.xrncal?.app?.pickBackgroundImage) return
+              const result = await window.xrncal.app.pickBackgroundImage()
               if (result?.dataUrl) await applyTheme({ ...current, bgUrl: result.dataUrl })
             }}
           >

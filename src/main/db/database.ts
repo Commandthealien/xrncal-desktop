@@ -505,7 +505,7 @@ export function initDatabase(dbDirOrPath: string): ISqliteDatabase {
     return dbInstance
   }
 
-  const dbPath = dbDirOrPath === ':memory:' ? ':memory:' : dbDirOrPath.endsWith('.sqlite') || dbDirOrPath.endsWith('.db') ? dbDirOrPath : join(dbDirOrPath, 'gone-calendar.sqlite')
+  const dbPath = dbDirOrPath === ':memory:' ? ':memory:' : dbDirOrPath.endsWith('.sqlite') || dbDirOrPath.endsWith('.db') ? dbDirOrPath : join(dbDirOrPath, 'xrncal.sqlite')
   const db = createSqliteDriver(dbPath)
 
   runMigrations(db)

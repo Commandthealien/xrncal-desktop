@@ -20,7 +20,7 @@ export const safeStorage = {
 
 export const app = {
   getPath: () => '/tmp',
-  getName: () => 'gone-calendar',
+  getName: () => 'xrncal',
   getVersion: () => '0.0.0-test',
   getLocale: () => 'en',
   on: () => app,

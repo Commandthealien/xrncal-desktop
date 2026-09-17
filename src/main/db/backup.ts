@@ -12,7 +12,7 @@ import type { ISqliteDatabase } from './sqlite-driver'
  * together.
  *
  * The result is an ordinary SQLite database: restoring is copying it back over
- * `gone-calendar.sqlite` with the app closed.
+ * `xrncal.sqlite` with the app closed.
  */
 export function backupDatabaseTo(db: ISqliteDatabase, destPath: string): number {
   // VACUUM INTO refuses to overwrite, so an existing snapshot at this path is
@@ -27,8 +27,8 @@ export function backupDatabaseTo(db: ISqliteDatabase, destPath: string): number 
   return statSync(destPath).size
 }
 
-/** `gone-calendar-backup-2026-09-14T19-20-31.sqlite` */
+/** `xrncal-backup-2026-09-14T19-20-31.sqlite` */
 export function defaultBackupFileName(now = new Date()): string {
   const stamp = now.toISOString().replace(/\.\d+Z$/, '').replace(/:/g, '-')
-  return `gone-calendar-backup-${stamp}.sqlite`
+  return `xrncal-backup-${stamp}.sqlite`
 }

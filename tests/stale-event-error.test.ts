@@ -15,7 +15,7 @@ describe('isStaleEventError', () => {
   it('recognises it through the Electron IPC wrapper', () => {
     // What actually reaches the renderer is the message wrapped by ipcRenderer.
     const wrapped = new Error(
-      "Error invoking remote method 'gone:event:move': Error: Event not found: evt_123_abc"
+      "Error invoking remote method 'xrncal:event:move': Error: Event not found: evt_123_abc"
     )
     expect(isStaleEventError(wrapped)).toBe(true)
   })

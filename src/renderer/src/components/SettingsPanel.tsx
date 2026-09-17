@@ -236,7 +236,7 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = (props) => {
                 type="button"
                 className="flex w-full items-center gap-2.5 rounded-[3px] px-2.5 py-2.5 text-left text-sm text-primary transition-colors hover:bg-hover"
                 onClick={async () => {
-                  const result = await window.gone?.app?.backupDatabase?.()
+                  const result = await window.xrncal?.app?.backupDatabase?.()
                   if (!result) return
                   if (result.success) {
                     toast.success(t('settings.backupDone'), { description: result.filePath })

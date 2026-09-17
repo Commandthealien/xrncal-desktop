@@ -1,4 +1,4 @@
-# Gone Calendar — Deployment Guide
+# xrncal — Deployment Guide
 
 **Last updated:** 2026-08-31
 
@@ -16,8 +16,8 @@
 
 ```bash
 # Clone the repository
-git clone https://github.com/Deocomate/gone-calendar-electron
-cd gone-calendar-electron
+git clone https://github.com/Xernnn/xrncal-desktop
+cd xrncal-desktop
 
 # Install dependencies
 npm install
@@ -108,18 +108,18 @@ npm run pack:linux
 
 To run the AppImage on Linux:
 ```bash
-chmod +x GoneCalendar-*.AppImage
-./GoneCalendar-*.AppImage
+chmod +x xrncal-*.AppImage
+./xrncal-*.AppImage
 ```
 
 ---
 
 ## electron-builder Configuration
 
-See [`electron-builder.yml`](file:///c:/Users/minhlong/Desktop/projects/gone-calendar/electron-builder.yml) at the project root. Key settings:
+See [`electron-builder.yml`](file:///c:/Users/minhlong/Desktop/projects/xrncal/electron-builder.yml) at the project root. Key settings:
 
-- `appId`: `com.gone-calendar.app`
-- `productName`: `Gone Calendar`
+- `appId`: `com.xrncal.app`
+- `productName`: `xrncal`
 - `nsis.oneClick`: false (installer shows options)
 - `linux.category`: `Office`
 - `linux.target`: AppImage
@@ -141,11 +141,11 @@ electron-vite loads a project-root `.env` into the main process automatically. F
 **packaged build**, `src/main/load-credentials.ts` reads a plain `KEY=VALUE` file at
 startup and copies any not-already-set variables into `process.env`. It checks, in order:
 
-1. `<userData>/gone-calendar.env` — on Linux, `~/.config/gone-calendar/gone-calendar.env`
-2. `gone-calendar.env` next to the executable / AppImage
+1. `<userData>/xrncal.env` — on Linux, `~/.config/xrncal/xrncal.env`
+2. `xrncal.env` next to the executable / AppImage
 3. `.env` in the current working directory
 
-Example `~/.config/gone-calendar/gone-calendar.env`:
+Example `~/.config/xrncal/xrncal.env`:
 
 ```
 GOOGLE_OAUTH_CLIENT_ID=1234567890-abcdef.apps.googleusercontent.com
@@ -194,8 +194,8 @@ via `shell.openExternal`) — no `@azure/msal-node` dependency.
 
 | Platform | Path |
 |----------|------|
-| Windows | `%APPDATA%\gone-calendar\gone-calendar.sqlite` |
-| Linux | `~/.config/gone-calendar/gone-calendar.sqlite` |
+| Windows | `%APPDATA%\xrncal\xrncal.sqlite` |
+| Linux | `~/.config/xrncal/xrncal.sqlite` |
 
 Determined by `app.getPath('userData')` in Electron.
 
