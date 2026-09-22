@@ -124,30 +124,9 @@ export const App: React.FC = () => {
     )
   }, [])
 
-  // Year view scrolls continuously through years either side of the anchor, so
-  // the query has to cover the whole mounted span - querying only the anchor
-  // year left every scrolled-to year rendering with no event markers at all.
-  const [yearSpan, setYearSpan] = useState<{ start: number; end: number } | null>(null)
-
-  useEffect(() => {
-    if (currentView !== 'year') setYearSpan(null)
-  }, [currentView])
-
-  const handleVisibleYearsChange = useCallback((start: number, end: number) => {
-    setYearSpan((prev) => (prev && prev.start === start && prev.end === end ? prev : { start, end }))
-  }, [])
-
   const queryRange = useMemo(() => {
-    if (currentView === 'year') {
-      if (!yearSpan) return visibleRange
-      const start = DateTime.local(yearSpan.start, 1, 1).startOf('day')
-      const end = DateTime.local(yearSpan.end, 12, 31).endOf('day')
-      return {
-        startUtc: start.toUTC().toISO() || start.toISO()!,
-        endUtc: end.toUTC().toISO() || end.toISO()!,
-        label: visibleRange.label
-      }
-    }
+    // Year needs no special case any more: it shows exactly one year, and
+    // visibleRange already spans startOf('year') to endOf('year').
     if (currentView !== 'list') return visibleRange
     const start = anchorDate.minus({ days: LIST_BASE_DAYS_BEFORE + listExpand.before }).startOf('day')
     const end = anchorDate.plus({ days: LIST_BASE_DAYS_AFTER + listExpand.after }).endOf('day')
@@ -157,7 +136,7 @@ export const App: React.FC = () => {
       label: visibleRange.label
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentView, anchorDate, listExpand, yearSpan, visibleRange.label])
+  }, [currentView, anchorDate, listExpand, visibleRange.label])
 
   const loadCalendarsAndEvents = useCallback(async () => {
     if (!window.xrncal?.calendars || !window.xrncal?.events) return
@@ -1185,6 +1164,8 @@ export const App: React.FC = () => {
               showWeekNumbers={showWeekNumbers}
               onSelectDate={openEditorForDate}
               onSelectOccurrence={handleSelectOccurrence}
+              onPrevMonth={handlePrev}
+              onNextMonth={handleNext}
               draggedOccurrenceId={draggedOccurrence?.id}
               selectedOccurrenceId={selection?.occurrenceId}
               dropTarget={dropTarget}
@@ -1247,6 +1228,8 @@ export const App: React.FC = () => {
                 setIsEditorOpen(true)
               }}
               onSelectOccurrence={handleSelectOccurrence}
+              onPrevDay={handlePrev}
+              onNextDay={handleNext}
               draggedOccurrenceId={draggedOccurrence?.id}
               selectedOccurrenceId={selection?.occurrenceId}
               dropTarget={dropTarget}
@@ -1264,7 +1247,8 @@ export const App: React.FC = () => {
               anchorDate={anchorDate}
               occurrences={occurrences}
               showLunar={showLunar}
-              onVisibleYearsChange={handleVisibleYearsChange}
+              onPrevYear={handlePrev}
+              onNextYear={handleNext}
               onSelectMonth={(year, month) => {
                 setAnchorDate((d) => d.set({ year, month, day: 1 }))
                 setCurrentView('month')

@@ -14,6 +14,7 @@ import { layoutTimedSegments } from '../dnd/layout-timed-events'
 import { layoutAllDayEvents } from '../dnd/layout-allday-events'
 import { useEventResize } from '../dnd/use-event-resize'
 import { useSlotDragSelect } from '../dnd/use-slot-drag-select'
+import { useWheelNavigation } from '../hooks/use-wheel-navigation'
 import { useDisplayPreferences, HOUR_HEIGHT_BY_SIZE } from '../context/DisplayPreferencesContext'
 import type { EventEditorDraftPreview } from '../editor/EventEditorDialog'
 
@@ -82,8 +83,8 @@ export const WeekView: React.FC<WeekViewProps> = ({
   onResizeBusyEnd
 }) => {
   const scrollRef = useRef<HTMLDivElement>(null)
-  const lastWheelNavRef = useRef(0)
   const gridRef = useRef<HTMLDivElement>(null)
+  const allDayScrollRef = useRef<HTMLDivElement>(null)
 
   const { hourBlockSize, dayStartHour, dragSnapMinutes } = useDisplayPreferences()
   const HOUR_HEIGHT = HOUR_HEIGHT_BY_SIZE[hourBlockSize]
@@ -124,14 +125,15 @@ export const WeekView: React.FC<WeekViewProps> = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  const handleHeaderWheel = (e: React.WheelEvent) => {
-    if (Math.abs(e.deltaY) < 2) return
-    const now = Date.now()
-    if (now - lastWheelNavRef.current < 60) return
-    lastWheelNavRef.current = now
-    if (e.deltaY > 0) onNextWeek?.()
-    else onPrevWeek?.()
-  }
+  // Navigation lives on the header band - day names and the all-day strip -
+  // and deliberately not on the hour grid below, where the wheel means what it
+  // has always meant: scroll the 24 hours. The strip itself scrolls once it is
+  // full, so the wheel only steps the week from either end of it.
+  const handleWheel = useWheelNavigation({
+    onPrev: onPrevWeek,
+    onNext: onNextWeek,
+    scrollerRef: allDayScrollRef
+  })
 
   const displayOccurrences = withResizePreview(occurrences, preview)
   const allDayOccurrences = displayOccurrences.filter((o) => o.allDay)
@@ -152,6 +154,12 @@ export const WeekView: React.FC<WeekViewProps> = ({
   // this, lanes sit flush top-to-bottom with no seam between them at all, unlike the
   // horizontal gap between same-lane bars.
   const LANE_ROW_GAP = 4
+  // Where the strip stops growing and starts scrolling. Three lanes plus the
+  // add-lane is about as much as can go above the hour grid before the grid
+  // itself stops being usable.
+  const ALL_DAY_MAX_LANES = 3
+  const ALL_DAY_MAX_HEIGHT =
+    ALL_DAY_MAX_LANES * (ALL_DAY_LANE_HEIGHT + LANE_ROW_GAP) + ADD_LANE_HEIGHT
 
   // A new all-day event being drafted highlights its date(s) in the header row above
   // instead of a fake bar in the lanes below - simpler, and it can't be mistaken for
@@ -188,8 +196,11 @@ export const WeekView: React.FC<WeekViewProps> = ({
 
   return (
     <div className="relative flex h-full w-full min-w-0 flex-col overflow-hidden bg-surface select-none">
-      <div className="gc-week-header shrink-0 overflow-x-hidden border-b border-hairline [scrollbar-gutter:stable]">
-          <div className={`grid ${gridColsClass} divide-x divide-hairline`} onWheel={handleHeaderWheel}>
+      <div
+        onWheel={handleWheel}
+        className="gc-week-header shrink-0 overflow-x-hidden border-b border-hairline [scrollbar-gutter:stable]"
+      >
+          <div className={`gc-week-grid grid ${gridColsClass} divide-x divide-hairline`}>
             <div className="flex items-center justify-center bg-app">
               {showWeekNumbers && (
                 <button
@@ -243,96 +254,104 @@ export const WeekView: React.FC<WeekViewProps> = ({
             })}
           </div>
 
+          {/* Capped and scrollable: a week with a dozen overlapping trips used to
+              push the hour grid off the bottom of the screen. The scrollbar is
+              hidden (.gc-allday-scroll) because one would narrow the day columns
+              in here and nothing below would line up any more. */}
           <div
-            className="relative border-t border-hairline"
-            style={{ height: `${allDayAreaHeight}px` }}
+            ref={allDayScrollRef}
+            className="gc-allday-scroll overflow-y-auto border-t border-hairline"
+            style={{ maxHeight: `${ALL_DAY_MAX_HEIGHT}px` }}
           >
-            {/* Background: per-day click/drag targets - always full height, so there's
-                room below the busiest lane to click and add another all-day event. */}
-            <div className={`absolute inset-0 grid ${gridColsClass} divide-x divide-hairline bg-app`} onWheel={handleHeaderWheel}>
-              <div />
-              {weekDays.map((day) => {
-                const dayStr = day.toFormat('yyyy-MM-dd')
-                const isDropTarget = dropTarget?.dateKey === dayStr && dropTarget.hour === undefined
-                return (
-                  <div
-                    key={dayStr}
-                    onDragOver={(e) => {
-                      prepareDropEvent(e)
-                      onDragOverTarget?.({ dateKey: dayStr })
-                    }}
-                    onDrop={(e) => onDropOnAllDayLane?.(e, day)}
-                    onClick={(e) => {
-                      const dayStart = day.startOf('day')
-                      onSelectSlot?.(dayStart, dayStart, { clientX: e.clientX, allDay: true })
-                    }}
-                    className={`gc-cell cursor-pointer min-w-0 ${isDropTarget ? 'is-drop-target' : ''}`}
-                  />
-                )
-              })}
-            </div>
+            <div className="relative" style={{ height: `${allDayAreaHeight}px` }}>
+              {/* Background: per-day click/drag targets - always full height, so there's
+                  room below the busiest lane to click and add another all-day event. */}
+              <div className={`gc-week-grid absolute inset-0 grid ${gridColsClass} divide-x divide-hairline bg-app`}>
+                <div />
+                {weekDays.map((day) => {
+                  const dayStr = day.toFormat('yyyy-MM-dd')
+                  const isDropTarget = dropTarget?.dateKey === dayStr && dropTarget.hour === undefined
+                  return (
+                    <div
+                      key={dayStr}
+                      onDragOver={(e) => {
+                        prepareDropEvent(e)
+                        onDragOverTarget?.({ dateKey: dayStr })
+                      }}
+                      onDrop={(e) => onDropOnAllDayLane?.(e, day)}
+                      onClick={(e) => {
+                        const dayStart = day.startOf('day')
+                        onSelectSlot?.(dayStart, dayStart, { clientX: e.clientX, allDay: true })
+                      }}
+                      className={`gc-cell cursor-pointer min-w-0 ${isDropTarget ? 'is-drop-target' : ''}`}
+                    />
+                  )
+                })}
+              </div>
 
-            {/* Overlay: one continuous bar per all-day event, spanning every day it
-                covers (clamped to this week) instead of a separate pill per day. */}
-            <div
-              className={`pointer-events-none absolute inset-0 grid ${gridColsClass} content-start`}
-              style={{
-                // The reserved "click to add another" lane is its own explicit row
-                // (ADD_LANE_HEIGHT), separate from the repeat() sizing real lanes.
-                gridTemplateRows:
-                  allDayLaneCount > 0
-                    ? `repeat(${allDayLaneCount}, ${ALL_DAY_LANE_HEIGHT}px) ${ADD_LANE_HEIGHT}px`
-                    : `${ADD_LANE_HEIGHT}px`,
-                rowGap: `${LANE_ROW_GAP}px`,
-                paddingTop: 2
-              }}
-            >
-              {allDayLayouts.map((l) => (
-                <div
-                  key={l.occ.id}
-                  // Gap on one side only (not both) - two adjacent bars then get a single
-                  // ~4px seam between them instead of each contributing its own padding
-                  // and doubling it, so the visible block reads bigger for the same gap.
-                  className="pointer-events-auto min-w-0 h-full pr-1"
-                  style={{
-                    gridColumn: `${l.startCol + dayColOffset} / span ${l.span}`,
-                    gridRow: l.lane + 1
-                  }}
-                >
-                  <EventPill
-                    dense
-                    draggable
-                    // Fill the full lane row instead of shrinking to its own text
-                    // height - otherwise the bar reads much thinner than the lane
-                    // height reserved for it, on top of whatever the side gaps are.
-                    className="h-full"
-                    isDragging={draggedOccurrenceId === l.occ.id}
-                    title={l.occ.title}
-                    color={l.occ.color}
-                    onDragStart={(e) => onDragStart?.(e, l.occ)}
-                    onDragEnd={onDragEnd}
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      onSelectOccurrence?.(l.occ)
+              {/* Overlay: one continuous bar per all-day event, spanning every day it
+                  covers (clamped to this week) instead of a separate pill per day. */}
+              <div
+                className={`gc-week-grid pointer-events-none absolute inset-0 grid ${gridColsClass} content-start`}
+                style={{
+                  // The reserved "click to add another" lane is its own explicit row
+                  // (ADD_LANE_HEIGHT), separate from the repeat() sizing real lanes.
+                  gridTemplateRows:
+                    allDayLaneCount > 0
+                      ? `repeat(${allDayLaneCount}, ${ALL_DAY_LANE_HEIGHT}px) ${ADD_LANE_HEIGHT}px`
+                      : `${ADD_LANE_HEIGHT}px`,
+                  rowGap: `${LANE_ROW_GAP}px`,
+                  paddingTop: 2
+                }}
+              >
+                {allDayLayouts.map((l) => (
+                  <div
+                    key={l.occ.id}
+                    // Gap on one side only (not both) - two adjacent bars then get a single
+                    // ~4px seam between them instead of each contributing its own padding
+                    // and doubling it, so the visible block reads bigger for the same gap.
+                    className="pointer-events-auto min-w-0 h-full pr-1"
+                    style={{
+                      gridColumn: `${l.startCol + dayColOffset} / span ${l.span}`,
+                      gridRow: l.lane + 1
                     }}
-                    onAuxClick={(e) => {
-                      e.stopPropagation()
-                      onDeleteOccurrence?.(l.occ)
-                    }}
-                  />
-                </div>
-              ))}
+                  >
+                    <EventPill
+                      dense
+                      draggable
+                      // Fill the full lane row instead of shrinking to its own text
+                      // height - otherwise the bar reads much thinner than the lane
+                      // height reserved for it, on top of whatever the side gaps are.
+                      className="h-full"
+                      isDragging={draggedOccurrenceId === l.occ.id}
+                      isSelected={selectedOccurrenceId === l.occ.id}
+                      title={l.occ.title}
+                      color={l.occ.color}
+                      onDragStart={(e) => onDragStart?.(e, l.occ)}
+                      onDragEnd={onDragEnd}
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        onSelectOccurrence?.(l.occ)
+                      }}
+                      onAuxClick={(e) => {
+                        e.stopPropagation()
+                        onDeleteOccurrence?.(l.occ)
+                      }}
+                    />
+                  </div>
+                ))}
+              </div>
             </div>
           </div>
         </div>
 
         <div
           ref={scrollRef}
-          className="relative min-h-0 min-w-0 flex-1 overflow-x-hidden overflow-y-scroll [scrollbar-gutter:stable]"
+          className="gc-week-scroll relative min-h-0 min-w-0 flex-1 overflow-x-hidden overflow-y-scroll [scrollbar-gutter:stable]"
         >
           <div
             ref={gridRef}
-            className={`relative grid min-w-0 ${gridColsClass} divide-x divide-hairline`}
+            className={`gc-week-grid relative grid min-w-0 ${gridColsClass} divide-x divide-hairline`}
             style={{ minHeight: `${24 * HOUR_HEIGHT}px` }}
           >
             <HourGutter hours={hours} hourHeight={HOUR_HEIGHT} referenceDay={weekDays[0]} />

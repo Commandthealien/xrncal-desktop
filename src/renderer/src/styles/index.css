@@ -443,3 +443,115 @@
 .gc-week-header::-webkit-scrollbar-thumb {
   background: transparent;
 }
+
+/* --- Year view -------------------------------------------------------------
+ *
+ * The year lays out as one page, like month and week. Twelve month cards have
+ * to divide the viewport exactly, which works until the window is short: with
+ * `1fr` rows and nothing else, the week rows shrink below the height of the
+ * digits in them and the numbers overlap into an unreadable stack.
+ *
+ * A floor height per card stops that. Past the floor the grid scrolls, and
+ * YearView only steps the year once that scroll has reached its end.
+ */
+/* The all-day strip stops growing after a few lanes and scrolls instead, so a
+   busy week cannot push the hour grid off the bottom of the screen.
+
+   Its scrollbar is hidden rather than styled: the strip's day columns have to
+   line up with the hour grid underneath it, and a scrollbar inside it would
+   take its width out of the last column and break that alignment for every row
+   below. The wheel, a drag and the keyboard all still scroll it. */
+.gc-allday-scroll {
+  scrollbar-width: none;
+}
+
+.gc-allday-scroll::-webkit-scrollbar {
+  display: none;
+}
+
+/* The twelve cards stay a gap apart and the page's leftover height collects at
+   the top and bottom edges. Sharing that slack between the rows instead
+   (`align-content: space-evenly`) pushed the months so far apart on a tall
+   window that the year stopped reading as one block.
+
+   `safe` is doing real work: a plain `center` pushes the first row above the
+   scrollport as soon as the grid overflows a short window, and January becomes
+   unreachable. `safe` falls back to start in exactly that case. */
+.gc-year-grid {
+  align-content: safe center;
+}
+
+.gc-year-grid > * {
+  /* Month label + weekday row + six week rows, at their smallest legible size. */
+  min-height: 118px;
+}
+
+@media (min-width: 640px) {
+  .gc-year-grid > * {
+    min-height: 140px;
+  }
+}
+
+/* Week rows stop growing once they are comfortable for the digits in them.
+   Without a cap they stretch to fill the card, leaving a 10px number floating
+   in a 24px slot - the month reads as a loose scatter rather than a grid. The
+   card centres the block, so the reclaimed space becomes the gap *between*
+   months, which is where it belongs. */
+.gc-year-month-grid {
+  max-height: 120px;
+}
+
+@media (min-width: 640px) {
+  .gc-year-month-grid {
+    max-height: 138px;
+  }
+}
+
+/* Where the lunar date shows, each cell carries two lines and needs the room. */
+@media (min-width: 768px) and (min-height: 620px) {
+  .gc-year-month-grid {
+    max-height: 168px;
+  }
+}
+
+/* A short, wide window - a phone in landscape, or a desktop window dragged
+   down to half height - has the width to trade rows for columns, which is what
+   keeps the whole year on one page instead of scrolling. */
+@media (max-height: 560px) and (min-width: 700px) {
+  .gc-year-grid {
+    grid-template-columns: repeat(6, minmax(0, 1fr)) !important;
+  }
+
+  .gc-year-grid > * {
+    min-height: 0;
+  }
+
+  /* Two rows have to share a short viewport, so the cap comes down with it. */
+  .gc-year-month-grid {
+    max-height: 104px;
+  }
+}
+
+/* Taller than it is wide and very short is hopeless for six columns; fall back
+   to scrolling rather than crushing the cells. */
+@media (max-height: 420px) and (max-width: 699px) {
+  .gc-year-grid > * {
+    min-height: 118px;
+  }
+}
+
+/* The lunar date is a second line inside a day cell, so it needs the cell to
+   be tall - which depends on the viewport's height, not just its width. A
+   wide but short window (landscape phone) has the columns for six months
+   across and no room at all for a second line, and showing it there clipped
+   the day numbers themselves. Off by default, on only when both dimensions
+   allow it. Month view still carries the lunar dates everywhere. */
+.gc-year-lunar {
+  display: none;
+}
+
+@media (min-width: 768px) and (min-height: 620px) {
+  .gc-year-lunar {
+    display: block;
+  }
+}

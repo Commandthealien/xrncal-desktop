@@ -15,6 +15,7 @@ import { minutesFromPointer, prepareDropEvent, type CalendarDropTarget } from '.
 import { layoutTimedSegments } from '../dnd/layout-timed-events'
 import { useEventResize } from '../dnd/use-event-resize'
 import { useSlotDragSelect } from '../dnd/use-slot-drag-select'
+import { useWheelNavigation } from '../hooks/use-wheel-navigation'
 import { useDisplayPreferences, HOUR_HEIGHT_BY_SIZE } from '../context/DisplayPreferencesContext'
 import type { EventEditorDraftPreview } from '../editor/EventEditorDialog'
 
@@ -31,6 +32,9 @@ interface DayViewProps {
   previewSlot?: EventEditorDraftPreview | null
   onSelectOccurrence?: (occ: ExpandedOccurrence) => void
   onSelectSlot?: (start: DateTime, end: DateTime, meta?: { clientX?: number; allDay?: boolean }) => void
+  /** Wheel / trackpad past the threshold steps a day, as in the other views. */
+  onPrevDay?: () => void
+  onNextDay?: () => void
   onDragStart?: (e: React.DragEvent, occ: ExpandedOccurrence, segment?: TimedSegment) => void
   onDragEnd?: () => void
   onDragOverTarget?: (target: CalendarDropTarget) => void
@@ -49,6 +53,8 @@ export const DayView: React.FC<DayViewProps> = ({
   previewSlot,
   onSelectOccurrence,
   onSelectSlot,
+  onPrevDay,
+  onNextDay,
   onDragStart,
   onDragEnd,
   onDragOverTarget,
@@ -58,6 +64,17 @@ export const DayView: React.FC<DayViewProps> = ({
 }) => {
   const scrollRef = useRef<HTMLDivElement>(null)
   const columnRef = useRef<HTMLDivElement>(null)
+  const allDayScrollRef = useRef<HTMLDivElement>(null)
+
+  // Navigation lives on the date header and the all-day row, and deliberately
+  // not on the hour grid below, where the wheel means what it has always
+  // meant: scroll the 24 hours. The all-day row scrolls itself once it is
+  // full, so the wheel only steps the day from either end of it.
+  const handleWheel = useWheelNavigation({
+    onPrev: onPrevDay,
+    onNext: onNextDay,
+    scrollerRef: allDayScrollRef
+  })
 
   const { t, i18n } = useTranslation()
   const { hourBlockSize, dayStartHour, dragSnapMinutes } = useDisplayPreferences()
@@ -139,7 +156,10 @@ export const DayView: React.FC<DayViewProps> = ({
   return (
     <div className="flex h-full w-full flex-col overflow-hidden bg-surface select-none relative">
       {/* Header */}
-      <div className="flex shrink-0 items-center border-b border-hairline bg-app/40 px-6 py-3.5">
+      <div
+        onWheel={handleWheel}
+        className="flex shrink-0 items-center border-b border-hairline bg-app/40 px-6 py-3.5"
+      >
         <div className="flex items-center gap-3.5 min-w-0">
           <span
             className={`flex h-10 w-10 items-center justify-center rounded-full text-xl font-bold shrink-0 ${
@@ -181,12 +201,18 @@ export const DayView: React.FC<DayViewProps> = ({
           It previously lived inside the header row, floating beside the date and
           aligned with nothing. */}
       <div
+        onWheel={handleWheel}
         className={`grid ${gridColsClass} shrink-0 items-start border-b border-hairline bg-app/40`}
       >
         <div className="py-2 pr-3 text-right text-[11px] font-medium text-muted select-none">
           {t('list.allDay')}
         </div>
+        {/* Capped and scrollable: a day carrying a dozen all-day entries used to
+            wrap them into a block deep enough to push the hour grid off screen.
+            The scrollbar is hidden (.gc-allday-scroll) so the row keeps the
+            column width the hour gutter below is aligned to. */}
         <div
+          ref={allDayScrollRef}
           onDragOver={(e) => {
             prepareDropEvent(e)
             onDragOverTarget?.({ dateKey: dayKey })
@@ -196,7 +222,7 @@ export const DayView: React.FC<DayViewProps> = ({
             const dayStart = anchorDate.startOf('day')
             onSelectSlot?.(dayStart, dayStart, { clientX: e.clientX, allDay: true })
           }}
-          className={`gc-cell flex min-h-[2.5rem] min-w-0 cursor-pointer flex-wrap content-start items-start gap-1 p-1.5 ${
+          className={`gc-cell gc-allday-scroll flex max-h-[100px] min-h-[2.5rem] min-w-0 cursor-pointer flex-wrap content-start items-start gap-1 overflow-y-auto p-1.5 ${
             dropTarget?.dateKey === dayKey && dropTarget.hour === undefined ? 'is-drop-target' : ''
           }`}
         >

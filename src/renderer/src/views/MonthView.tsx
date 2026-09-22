@@ -7,6 +7,7 @@ import { Layers } from 'lucide-react'
 import type { ExpandedOccurrence } from '@shared/event-model'
 import { getDayHighlights, DAY_HIGHLIGHT_COLORS, type DayHighlightKind } from '@shared/day-highlight'
 import { formatClockTime } from '@shared/time-format'
+import { useWheelNavigation } from '../hooks/use-wheel-navigation'
 import { useDisplayPreferences } from '../context/DisplayPreferencesContext'
 import LunarLabel from '../components/LunarLabel'
 import WeekNumber from '../components/WeekNumber'
@@ -26,6 +27,9 @@ interface MonthViewProps {
   dropTarget?: CalendarDropTarget | null
   onSelectDate?: (date: DateTime) => void
   onSelectOccurrence?: (occ: ExpandedOccurrence) => void
+  /** Wheel / trackpad past the threshold steps a month, as in the other views. */
+  onPrevMonth?: () => void
+  onNextMonth?: () => void
   onDragStart?: (e: React.DragEvent, occ: ExpandedOccurrence) => void
   onDragEnd?: () => void
   onDragOverTarget?: (target: CalendarDropTarget) => void
@@ -209,6 +213,8 @@ export const MonthView: React.FC<MonthViewProps> = ({
   dropTarget,
   onSelectDate,
   onSelectOccurrence,
+  onPrevMonth,
+  onNextMonth,
   onDragStart,
   onDragEnd,
   onDragOverTarget,
@@ -218,6 +224,11 @@ export const MonthView: React.FC<MonthViewProps> = ({
   const [peek, setPeek] = useState<DayPeekData | null>(null)
   const weeksGridRef = useRef<HTMLDivElement>(null)
   const [maxVisible, setMaxVisible] = useState(2)
+
+  // The whole month fits the page, so nothing here scrolls and a flick
+  // anywhere steps a month. The peek popover is portalled and scrolls its own
+  // list; the hook leaves it alone.
+  const handleWheel = useWheelNavigation({ onPrev: onPrevMonth, onNext: onNextMonth })
 
   // Dragging an event out of the peek should dismiss it.
   useEffect(() => {
@@ -275,7 +286,10 @@ export const MonthView: React.FC<MonthViewProps> = ({
     : 'grid-cols-[repeat(7,minmax(0,1fr))]'
 
   return (
-    <div className="flex h-full w-full flex-col overflow-hidden bg-surface select-none relative">
+    <div
+      onWheel={handleWheel}
+      className="flex h-full w-full flex-col overflow-hidden bg-surface select-none relative"
+    >
       {/* Header Row */}
       <div
         className={`grid border-b border-hairline py-2 text-center text-xs font-semibold text-muted ${gridColumnsClass}`}
