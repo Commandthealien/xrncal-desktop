@@ -14,6 +14,8 @@ interface ListViewProps {
   anchorDate: DateTime
   occurrences: ExpandedOccurrence[]
   showLunar: boolean
+  /** The occurrence the keyboard cursor is on, drawn with a ring. */
+  selectedOccurrenceId?: string | null
   onSelectOccurrence?: (occ: ExpandedOccurrence) => void
   onAddEvent?: () => void
   /** Scrolled near the top/bottom of what's currently loaded - ask for more. */
@@ -26,6 +28,7 @@ export const ListView: React.FC<ListViewProps> = ({
   anchorDate,
   occurrences,
   showLunar,
+  selectedOccurrenceId,
   onSelectOccurrence,
   onAddEvent,
   onNearEdge
@@ -201,7 +204,10 @@ export const ListView: React.FC<ListViewProps> = ({
                     type="button"
                     key={occ.id}
                     onClick={() => onSelectOccurrence?.(occ)}
-                    className="gc-event gc-stack-card-3d flex w-full cursor-pointer flex-col gap-1 rounded-[3px] px-3.5 py-3 text-left text-white shadow-xs sm:flex-row sm:items-center sm:justify-between"
+                    data-selected-occurrence={selectedOccurrenceId === occ.id || undefined}
+                    className={`gc-event gc-stack-card-3d flex w-full cursor-pointer flex-col gap-1 rounded-[3px] px-3.5 py-3 text-left text-white shadow-xs sm:flex-row sm:items-center sm:justify-between ${
+                      selectedOccurrenceId === occ.id ? 'is-key-selected' : ''
+                    }`}
                     style={{
                       backgroundColor: bg,
                       animationDelay: `${idx * 20}ms`

@@ -8,6 +8,8 @@ interface EventPillProps {
   className?: string
   dense?: boolean
   isDragging?: boolean
+  /** Where the keyboard cursor is sitting. */
+  isSelected?: boolean
   onClick?: (e: React.MouseEvent) => void
   /** Fired on non-primary button (used for middle-click delete). */
   onAuxClick?: (e: React.MouseEvent) => void
@@ -23,6 +25,7 @@ export const EventPill: React.FC<EventPillProps> = ({
   className = '',
   dense = false,
   isDragging = false,
+  isSelected = false,
   onClick,
   onAuxClick,
   draggable,
@@ -74,6 +77,7 @@ export const EventPill: React.FC<EventPillProps> = ({
       onMouseDown={handleMouseDown}
       onAuxClick={handleAuxClick}
       title={title}
+      data-selected-occurrence={isSelected || undefined}
       className={`gc-event flex w-full min-w-0 items-center text-white ${
         // Dense pills (all-day bars, Month view's mini list) are short enough that a
         // 6px radius - fine on a full-height timed block - eats a chunk of their own
@@ -81,7 +85,9 @@ export const EventPill: React.FC<EventPillProps> = ({
         dense
           ? 'gc-event-dense rounded-[4px] px-1.5 py-0.5 text-[11px] leading-tight'
           : 'rounded-[6px] px-2 py-1 text-[13px]'
-      } ${draggable ? 'cursor-grab active:cursor-grabbing' : ''} ${isDragging ? 'is-dragging' : ''} ${className}`}
+      } ${draggable ? 'cursor-grab active:cursor-grabbing' : ''} ${isDragging ? 'is-dragging' : ''} ${
+        isSelected ? 'is-key-selected' : ''
+      } ${className}`}
       style={{ backgroundColor: bg }}
     >
       {time ? <span className="shrink-0 opacity-90 font-mono text-[10px] mr-1">{time}</span> : null}

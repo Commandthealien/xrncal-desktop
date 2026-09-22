@@ -4,6 +4,7 @@ import { createPortal } from 'react-dom'
 import { Clock, ChevronDown } from 'lucide-react'
 import { formatClockTimeStr } from '@shared/time-format'
 import { useDisplayPreferences } from '../../context/DisplayPreferencesContext'
+import { nextEnabledIndex } from '../../lib/roving-index'
 
 export interface TimePickerProps {
   value: string // Format: HH:mm (e.g. "09:00", "14:30")
@@ -142,6 +143,10 @@ export const TimePicker: React.FC<TimePickerProps> = ({
   const popoverRef = useRef<HTMLDivElement>(null)
   const listRef = useRef<HTMLDivElement>(null)
   const activeItemRef = useRef<HTMLButtonElement>(null)
+  // Which slot the arrow keys are resting on. -1 means "none" - the state after
+  // typing, where Enter should commit what was typed rather than a slot the
+  // cursor happens to be parked on.
+  const [activeIndex, setActiveIndex] = useState(-1)
 
   const timeSlots = useMemo(
     () => generateTimeSlots(step, startTime),
@@ -176,7 +181,10 @@ export const TimePicker: React.FC<TimePickerProps> = ({
 
   // Scroll active item into view and update coordinates when opening
   useEffect(() => {
-    if (!isOpen) return
+    if (!isOpen) {
+      setActiveIndex(-1)
+      return
+    }
 
     updateCoords()
     setTimeout(() => {
@@ -217,6 +225,9 @@ export const TimePicker: React.FC<TimePickerProps> = ({
 
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
+        // Without stopPropagation this same Escape carries on to the dialog
+        // hosting the field and closes that too.
+        e.stopPropagation()
         setInputValue(value ? formatClockTimeStr(value, timeFormat) : '')
         setIsOpen(false)
       }
@@ -229,6 +240,10 @@ export const TimePicker: React.FC<TimePickerProps> = ({
       document.removeEventListener('keydown', handleKeyDown)
     }
   }, [isOpen, value, inputValue, timeFormat])
+
+  useEffect(() => {
+    if (activeIndex >= 0) activeItemRef.current?.scrollIntoView({ block: 'nearest' })
+  }, [activeIndex])
 
   const commitInput = () => {
     const parsed = parseSmartTime(inputValue)
@@ -246,14 +261,60 @@ export const TimePicker: React.FC<TimePickerProps> = ({
     setIsOpen(false)
   }
 
-  const handleInputKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === 'Enter') {
-      e.preventDefault()
-      commitInput()
-      setIsOpen(false)
-    } else if (e.key === 'ArrowDown') {
-      e.preventDefault()
+  /** Index of the slot matching the committed value, or 0 as a starting point. */
+  const slotIndexForValue = (): number => {
+    const found = timeSlots.indexOf(value)
+    return found >= 0 ? found : 0
+  }
+
+  const stepActive = (delta: number) => {
+    if (!isOpen) {
       setIsOpen(true)
+      setActiveIndex(slotIndexForValue())
+      return
+    }
+    setActiveIndex((prev) =>
+      prev < 0 ? slotIndexForValue() : nextEnabledIndex(timeSlots, prev, delta)
+    )
+  }
+
+  const handleInputKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    switch (e.key) {
+      case 'Enter':
+        e.preventDefault()
+        // Typing beats the highlight: any keystroke clears the active slot, so
+        // a value typed over a highlighted one still wins.
+        if (isOpen && activeIndex >= 0) handleSelectSlot(timeSlots[activeIndex])
+        else {
+          commitInput()
+          setIsOpen(false)
+        }
+        break
+      case 'ArrowDown':
+        e.preventDefault()
+        stepActive(1)
+        break
+      case 'ArrowUp':
+        e.preventDefault()
+        stepActive(-1)
+        break
+      case 'Home':
+        if (!isOpen) return
+        e.preventDefault()
+        setActiveIndex(0)
+        break
+      case 'End':
+        if (!isOpen) return
+        e.preventDefault()
+        setActiveIndex(timeSlots.length - 1)
+        break
+      case 'Tab':
+        // Unlike the portalled grids, this one has a real input to fall back
+        // to: commit what is there and let focus move on normally.
+        if (isOpen) setIsOpen(false)
+        break
+      default:
+        break
     }
   }
 
@@ -276,21 +337,23 @@ export const TimePicker: React.FC<TimePickerProps> = ({
 
             {/* Time Slot List */}
             <div ref={listRef} className="max-h-52 overflow-y-auto space-y-0.5 pr-0.5">
-              {timeSlots.map((slot) => {
+              {timeSlots.map((slot, idx) => {
                 const isSelected = slot === value
+                const isActive = idx === activeIndex
                 const duration = startTime ? formatDuration(startTime, slot) : null
 
                 return (
                   <button
                     key={slot}
                     type="button"
-                    ref={isSelected ? activeItemRef : undefined}
+                    ref={isActive || (activeIndex < 0 && isSelected) ? activeItemRef : undefined}
                     onClick={() => handleSelectSlot(slot)}
+                    onMouseEnter={() => setActiveIndex(idx)}
                     className={`flex w-full items-center justify-between px-2.5 py-1.5 text-xs font-mono tabular-nums transition-colors cursor-pointer ${
                       isSelected
                         ? 'bg-accent text-white font-bold'
                         : 'text-primary hover:bg-hover'
-                    }`}
+                    } ${isActive && !isSelected ? 'gc-option-active' : ''}`}
                     style={{ borderRadius: 'var(--radius-control)' }}
                   >
                     <span>{formatClockTimeStr(slot, timeFormat)}</span>
@@ -323,7 +386,7 @@ export const TimePicker: React.FC<TimePickerProps> = ({
       {/* Input / Trigger — matching DatePicker ghost styling */}
       <div
         onClick={() => !disabled && setIsOpen(true)}
-        className={`flex items-center justify-between gap-1 w-full text-left select-none cursor-pointer overflow-hidden transition-colors duration-100 bg-transparent border ${
+        className={`gc-focus-ring flex items-center justify-between gap-1 w-full text-left select-none cursor-pointer overflow-hidden transition-colors duration-100 bg-transparent border ${
           isOpen ? 'border-accent bg-hover/50' : 'border-transparent hover:border-hairline hover:bg-hover/30'
         } px-2.5 py-1.5 text-xs ${disabled ? 'opacity-50 cursor-not-allowed' : ''}`}
         style={{ borderRadius: 'var(--radius-control)' }}
@@ -340,7 +403,10 @@ export const TimePicker: React.FC<TimePickerProps> = ({
             value={inputValue}
             placeholder={placeholder}
             onFocus={() => !disabled && setIsOpen(true)}
-            onChange={(e) => setInputValue(e.target.value)}
+            onChange={(e) => {
+              setInputValue(e.target.value)
+              setActiveIndex(-1)
+            }}
             onBlur={commitInput}
             onKeyDown={handleInputKeyDown}
             className="w-full bg-transparent text-xs font-mono font-medium text-primary placeholder:text-muted border-none outline-none focus:outline-none focus:ring-0 focus-visible:outline-none min-w-0 tabular-nums p-0"

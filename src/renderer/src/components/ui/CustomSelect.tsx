@@ -2,6 +2,7 @@ import { useTranslation } from 'react-i18next'
 import React, { useState, useRef, useEffect, useMemo } from 'react'
 import { createPortal } from 'react-dom'
 import { ChevronDown, Check, Search } from 'lucide-react'
+import { nextEnabledIndex, firstEnabledIndex } from '../../lib/roving-index'
 
 export interface SelectOption {
   value: string
@@ -49,6 +50,14 @@ export const CustomSelect: React.FC<CustomSelectProps> = ({
   const containerRef = useRef<HTMLDivElement>(null)
   const popoverRef = useRef<HTMLDivElement>(null)
   const searchInputRef = useRef<HTMLInputElement>(null)
+  const triggerRef = useRef<HTMLButtonElement>(null)
+  const activeItemRef = useRef<HTMLButtonElement>(null)
+  // Which option the arrow keys are resting on. The popover lives in a portal
+  // at the end of <body>, so it is nowhere near the trigger in tab order -
+  // walking it with a roving index is the only way the keyboard reaches it.
+  const [activeIndex, setActiveIndex] = useState(-1)
+
+  const isOptionDisabled = (opt: SelectOption): boolean => Boolean(opt.disabled)
 
   const selectedOption = useMemo(
     () => (options || []).find((opt) => opt.value === value),
@@ -88,6 +97,27 @@ export const CustomSelect: React.FC<CustomSelectProps> = ({
 
     setCoords({ top, left, width: popoverWidth })
   }
+
+  // Open on whatever is currently selected, so the first arrow press steps off
+  // the real value rather than off the top of the list.
+  useEffect(() => {
+    if (!isOpen) return
+    const selected = filteredOptions.findIndex((opt) => opt.value === value && !opt.disabled)
+    setActiveIndex(selected >= 0 ? selected : firstEnabledIndex(filteredOptions, 'start', isOptionDisabled))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen])
+
+  // Filtering can shrink the list out from under the cursor.
+  useEffect(() => {
+    if (!isOpen) return
+    setActiveIndex((prev) =>
+      prev < filteredOptions.length ? prev : firstEnabledIndex(filteredOptions, 'start', isOptionDisabled)
+    )
+  }, [isOpen, filteredOptions])
+
+  useEffect(() => {
+    activeItemRef.current?.scrollIntoView({ block: 'nearest' })
+  }, [activeIndex])
 
   // Focus search input and update coordinates when opening
   useEffect(() => {
@@ -130,9 +160,63 @@ export const CustomSelect: React.FC<CustomSelectProps> = ({
       }
     }
 
+    // Focus stays on the trigger (or the search box) while the list is open, so
+    // the list is driven from here rather than by tabbing into it.
+    const step = (delta: number) => {
+      setActiveIndex((prev) => nextEnabledIndex(filteredOptions, prev, delta, isOptionDisabled))
+    }
+
+    const edge = (from: 'start' | 'end') => {
+      const found = firstEnabledIndex(filteredOptions, from, isOptionDisabled)
+      if (found >= 0) setActiveIndex(found)
+    }
+
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        setIsOpen(false)
+      switch (e.key) {
+        case 'Escape':
+          // Without stopPropagation this same Escape carries on to the dialog
+          // hosting the field and closes that too.
+          e.preventDefault()
+          e.stopPropagation()
+          setIsOpen(false)
+          triggerRef.current?.focus()
+          break
+        case 'ArrowDown':
+          e.preventDefault()
+          step(1)
+          break
+        case 'ArrowUp':
+          e.preventDefault()
+          step(-1)
+          break
+        case 'Home':
+          e.preventDefault()
+          edge('start')
+          break
+        case 'End':
+          e.preventDefault()
+          edge('end')
+          break
+        case 'Enter':
+          // Not just a shortcut for clicking: preventDefault also stops the
+          // browser turning this keydown into a click on the focused trigger,
+          // which would reopen the list the moment it closed.
+          e.preventDefault()
+          if (activeIndex >= 0 && filteredOptions[activeIndex]) {
+            handleSelect(filteredOptions[activeIndex])
+            triggerRef.current?.focus()
+          }
+          break
+        case 'Tab':
+          // The list is a portal at the end of <body>; letting Tab walk into it
+          // would strand focus miles from the field. Close and hand the trigger
+          // back instead.
+          e.preventDefault()
+          setIsOpen(false)
+          triggerRef.current?.focus()
+          break
+        default:
+          break
       }
     }
 
@@ -142,7 +226,8 @@ export const CustomSelect: React.FC<CustomSelectProps> = ({
       document.removeEventListener('mousedown', handleClickOutside)
       document.removeEventListener('keydown', handleKeyDown)
     }
-  }, [isOpen])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen, filteredOptions, activeIndex])
 
   const handleSelect = (opt: SelectOption) => {
     if (opt.disabled) return
@@ -193,19 +278,22 @@ export const CustomSelect: React.FC<CustomSelectProps> = ({
                   {t('ui.noResults')}
                 </div>
               ) : (
-                filteredOptions.map((opt) => {
+                filteredOptions.map((opt, idx) => {
                   const isSelected = opt.value === value
+                  const isActive = idx === activeIndex
                   return (
                     <button
                       key={opt.value}
                       type="button"
                       disabled={opt.disabled}
+                      ref={isActive ? activeItemRef : undefined}
                       onClick={() => handleSelect(opt)}
+                      onMouseEnter={() => !opt.disabled && setActiveIndex(idx)}
                       className={`flex w-full items-center justify-between gap-2 px-2 py-1.5 text-xs text-left transition-colors cursor-pointer ${
                         isSelected
                           ? 'bg-hover text-primary font-medium'
                           : 'text-primary hover:bg-hover'
-                      } ${opt.disabled ? 'opacity-40 cursor-not-allowed' : ''}`}
+                      } ${isActive ? 'gc-option-active' : ''} ${opt.disabled ? 'opacity-40 cursor-not-allowed' : ''}`}
                       style={{ borderRadius: 'var(--radius-control)' }}
                     >
                       <div className="flex items-center gap-2 min-w-0 flex-1">
@@ -260,10 +348,22 @@ export const CustomSelect: React.FC<CustomSelectProps> = ({
 
       {/* Trigger Button */}
       <button
+        ref={triggerRef}
         type="button"
         disabled={disabled}
+        aria-haspopup="listbox"
+        aria-expanded={isOpen}
         onClick={() => !disabled && setIsOpen((prev) => !prev)}
-        className={`flex items-center justify-between gap-2 w-full px-2.5 py-1.5 text-xs text-left transition-colors duration-100 select-none cursor-pointer outline-none focus:outline-none focus:ring-0 focus-visible:outline-none ${
+        onKeyDown={(e) => {
+          // Only opening is handled here - once open the list is driven by the
+          // document listener above, which also swallows these same keys.
+          if (disabled || isOpen) return
+          if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+            e.preventDefault()
+            setIsOpen(true)
+          }
+        }}
+        className={`gc-focus-ring flex items-center justify-between gap-2 w-full px-2.5 py-1.5 text-xs text-left transition-colors duration-100 select-none cursor-pointer outline-none focus:outline-none focus:ring-0 ${
           isGhost
             ? `bg-transparent border ${
                 isOpen ? 'border-hairline bg-hover/40' : 'border-transparent hover:border-hairline hover:bg-hover/30'

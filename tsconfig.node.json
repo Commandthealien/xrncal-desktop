@@ -22,10 +22,18 @@
     "baseUrl": ".",
     "jsx": "react-jsx",
     "paths": {
-      "@main/*": ["src/main/*"],
-      "@preload/*": ["src/preload/*"],
-      "@renderer/*": ["src/renderer/src/*"],
-      "@shared/*": ["src/shared/*"]
+      "@main/*": [
+        "src/main/*"
+      ],
+      "@preload/*": [
+        "src/preload/*"
+      ],
+      "@renderer/*": [
+        "src/renderer/src/*"
+      ],
+      "@shared/*": [
+        "src/shared/*"
+      ]
     }
   },
   "include": [
@@ -43,6 +51,9 @@
     "tests/drop-target.test.ts",
     "tests/resize-math.test.ts",
     "tests/i18n-parity.test.ts",
-    "tests/layout-allday-events.test.ts"
+    "tests/layout-allday-events.test.ts",
+    "tests/roving-index.test.ts",
+    "tests/wheel-navigation.test.ts",
+    "tests/android-sqlite-bridge.test.ts"
   ]
 }

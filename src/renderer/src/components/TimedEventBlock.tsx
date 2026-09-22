@@ -14,6 +14,8 @@ interface TimedEventBlockProps {
   minHeight: number
   isDragging: boolean
   isResizing: boolean
+  /** Where the keyboard cursor is sitting. */
+  isSelected?: boolean
   onSelect: (occ: ExpandedOccurrence) => void
   /** Middle-click gesture: delete this occurrence. */
   onDelete?: (occ: ExpandedOccurrence) => void
@@ -52,6 +54,7 @@ export const TimedEventBlock: React.FC<TimedEventBlockProps> = ({
   minHeight,
   isDragging,
   isResizing,
+  isSelected = false,
   onSelect,
   onDelete,
   onDragStart,
@@ -92,6 +95,7 @@ export const TimedEventBlock: React.FC<TimedEventBlockProps> = ({
         e.stopPropagation()
         onDelete?.(occ)
       }}
+      data-selected-occurrence={isSelected || undefined}
       style={{
         top: `${layout.topPos}px`,
         height: `${Math.max(minHeight, layout.height - 2)}px`,
@@ -107,7 +111,9 @@ export const TimedEventBlock: React.FC<TimedEventBlockProps> = ({
         layout.isNested
           ? 'z-30 shadow-md border-2 border-white/70 hover:z-40'
           : 'z-10 shadow-xs border border-white/20 hover:z-20'
-      } ${isDragging ? 'is-dragging' : ''} ${isResizing ? 'z-50' : ''}`}
+      } ${isDragging ? 'is-dragging' : ''} ${isSelected ? 'is-key-selected' : ''} ${
+        isResizing ? 'z-50' : ''
+      }`}
     >
       <div
         className="min-w-0"

@@ -23,6 +23,8 @@ interface WeekViewProps {
   showLunar: boolean
   showWeekNumbers?: boolean
   draggedOccurrenceId?: string
+  /** The occurrence the keyboard cursor is on, drawn with a ring. */
+  selectedOccurrenceId?: string | null
   dropTarget?: CalendarDropTarget | null
   /** Live slot/color for a new event still being drafted in the open editor - painted
    *  as an outline on the grid so the dialog isn't the only place the event is visible. */
@@ -62,6 +64,7 @@ export const WeekView: React.FC<WeekViewProps> = ({
   showLunar,
   showWeekNumbers = false,
   draggedOccurrenceId,
+  selectedOccurrenceId,
   dropTarget,
   previewSlot,
   onSelectOccurrence,
@@ -424,6 +427,7 @@ export const WeekView: React.FC<WeekViewProps> = ({
                       minHeight={24}
                       isDragging={draggedOccurrenceId === layout.occ.id}
                       isResizing={preview?.occId === layout.occ.id}
+                      isSelected={selectedOccurrenceId === layout.occ.id}
                       onSelect={(occ) => onSelectOccurrence?.(occ)}
                       onDelete={(occ) => onDeleteOccurrence?.(occ)}
                       onDragStart={onDragStart}

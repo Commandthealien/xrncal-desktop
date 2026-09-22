@@ -16,6 +16,9 @@ interface TitleSuggestInputProps {
   autoFocus?: boolean
   /** Suppressed while editing an existing event - its title is already decided. */
   enabled: boolean
+  /** Enter with no suggestion highlighted: save the event. Type a title, press
+   *  Enter, done - the whole point of starting in this field. */
+  onSubmit?: () => void
 }
 
 const DEBOUNCE_MS = 140
@@ -50,7 +53,8 @@ export const TitleSuggestInput: React.FC<TitleSuggestInputProps> = ({
   calendars,
   placeholder,
   autoFocus,
-  enabled
+  enabled,
+  onSubmit
 }) => {
   const { suggestionShowCalendarName } = useDisplayPreferences()
   const [suggestions, setSuggestions] = useState<TitleSuggestion[]>([])
@@ -111,7 +115,21 @@ export const TitleSuggestInput: React.FC<TitleSuggestInputProps> = ({
   const visible = isOpen && hasQuery && suggestions.length > 0
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>): void => {
-    if (!visible) return
+    if (!visible) {
+      if (e.key === 'Enter') {
+        e.preventDefault()
+        onSubmit?.()
+      }
+      return
+    }
+
+    if (e.key === 'Enter' && activeIndex < 0) {
+      // The list is up but nothing in it is highlighted: the user is done
+      // typing their own title, not browsing suggestions.
+      e.preventDefault()
+      onSubmit?.()
+      return
+    }
 
     if (e.key === 'ArrowDown') {
       e.preventDefault()

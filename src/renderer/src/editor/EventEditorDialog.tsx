@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react'
+import React, { useState, useEffect, useMemo, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import { DateTime } from 'luxon'
 import { Trash2, X, Share2, MapPin, Link as LinkIcon, Users } from 'lucide-react'
@@ -276,16 +276,41 @@ export const EventEditorDialog: React.FC<EventEditorDialogProps> = ({
     }
   }, [isOpen, data, calendars])
 
+  // The key handler has to be installed above the `isOpen` early return, like
+  // every other hook - but the actions it fires are defined below it, where the
+  // form's derived values live. These refs are refreshed on each open render and
+  // are the handler's way of reaching them.
+  const submitRef = useRef<() => void>(() => {})
+  const deleteRef = useRef<() => void>(() => {})
+
   useEffect(() => {
+    if (!isOpen) return
+
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && isOpen) {
-        if (isDirty) setShowDiscardConfirm(true)
+      if (e.key === 'Escape') {
+        // A picker popover stops its own Escape from reaching this handler, so
+        // arriving here means nothing smaller is open.
+        if (showDiscardConfirm) setShowDiscardConfirm(false)
+        else if (isDirty) setShowDiscardConfirm(true)
         else onClose()
+        return
+      }
+
+      // Everything else is behind Ctrl/Cmd: the form is full of text fields,
+      // and a bare letter belongs to whichever one has focus.
+      if (!(e.ctrlKey || e.metaKey) || showDiscardConfirm) return
+
+      if (e.key === 'Enter') {
+        e.preventDefault()
+        submitRef.current()
+      } else if (e.key === 'Backspace' || e.key === 'Delete') {
+        e.preventDefault()
+        deleteRef.current()
       }
     }
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [isOpen, isDirty, onClose])
+  }, [isOpen, isDirty, showDiscardConfirm, onClose])
 
   /**
    * The slot the title suggestions are being asked about, in the same shape the
@@ -534,8 +559,7 @@ export const EventEditorDialog: React.FC<EventEditorDialogProps> = ({
     return out
   })()
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault()
+  const submitEvent = () => {
     if (!title.trim()) {
       toast.warning(t('editor.needTitle'))
       return
@@ -591,6 +615,22 @@ export const EventEditorDialog: React.FC<EventEditorDialogProps> = ({
       input: payloadInput
     })
   }
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault()
+    submitEvent()
+  }
+
+  const deleteEvent = () => {
+    const eventId = data?.occurrence?.eventId || data?.event?.id
+    if (!isEditing || !eventId) return
+    onDelete(eventId, data?.occurrence?.originalStartUtc, Boolean(data?.occurrence?.isRecurring))
+  }
+
+  // Refreshed every render the dialog is open, which is the only time the
+  // handler above can fire.
+  submitRef.current = submitEvent
+  deleteRef.current = deleteEvent
 
   const writableCalendars = (calendars || []).filter((c) => !c.isReadOnly)
 
@@ -708,6 +748,7 @@ export const EventEditorDialog: React.FC<EventEditorDialogProps> = ({
               placeholder={t('editor.titlePlaceholder')}
               autoFocus
               enabled={!isEditing}
+              onSubmit={submitEvent}
             />
           </div>
 
@@ -1040,16 +1081,8 @@ export const EventEditorDialog: React.FC<EventEditorDialogProps> = ({
 
                 <button
                   type="button"
-                  onClick={() => {
-                    const eventId = data?.occurrence?.eventId || data?.event?.id
-                    if (eventId) {
-                      onDelete(
-                        eventId,
-                        data?.occurrence?.originalStartUtc,
-                        Boolean(data?.occurrence?.isRecurring)
-                      )
-                    }
-                  }}
+                  onClick={deleteEvent}
+                  title={t('shortcuts.hintDelete')}
                   className="flex items-center gap-1.5 px-2.5 py-1.5 text-today hover:opacity-80 transition-opacity text-xs cursor-pointer"
                 >
                   <Trash2 className="h-3.5 w-3.5" />
@@ -1070,6 +1103,7 @@ export const EventEditorDialog: React.FC<EventEditorDialogProps> = ({
             <button
               type="button"
               onClick={handleSubmit}
+              title={t('shortcuts.hintSave')}
               className="gc-btn-primary px-4 py-1.5 text-xs"
               style={{ borderRadius: 'var(--radius-control)' }}
             >

@@ -21,6 +21,8 @@ interface MonthViewProps {
   showLunar: boolean
   showWeekNumbers: boolean
   draggedOccurrenceId?: string
+  /** The occurrence the keyboard cursor is on, drawn with a ring. */
+  selectedOccurrenceId?: string | null
   dropTarget?: CalendarDropTarget | null
   onSelectDate?: (date: DateTime) => void
   onSelectOccurrence?: (occ: ExpandedOccurrence) => void
@@ -48,6 +50,7 @@ interface MonthDayCellProps {
   maxVisible: number
   isDropTarget: boolean
   draggedOccurrenceId?: string
+  selectedOccurrenceId?: string | null
   onSelectDate?: (date: DateTime) => void
   onSelectOccurrence?: (occ: ExpandedOccurrence) => void
   onDragStart?: (e: React.DragEvent, occ: ExpandedOccurrence) => void
@@ -65,6 +68,7 @@ const MonthDayCell: React.FC<MonthDayCellProps> = ({
   maxVisible,
   isDropTarget,
   draggedOccurrenceId,
+  selectedOccurrenceId,
   onSelectDate,
   onSelectOccurrence,
   onDragStart,
@@ -85,6 +89,18 @@ const MonthDayCell: React.FC<MonthDayCellProps> = ({
 
   const highlights = React.useMemo(() => getDayHighlights(day, today), [day, today])
   const highlightBg = highlightBackground(highlights)
+
+  // Keeping the keyboard cursor on screen: an event it has landed on that would
+  // otherwise sit inside this cell's "+N more" overflow takes the last visible
+  // row instead. The overflow count is unchanged - one hidden event has simply
+  // swapped places with another.
+  const visibleOccurrences = React.useMemo(() => {
+    const shown = dayOccurrences.slice(0, visibleCount)
+    if (!selectedOccurrenceId || visibleCount === 0) return shown
+    if (shown.some((o) => o.id === selectedOccurrenceId)) return shown
+    const selected = dayOccurrences.find((o) => o.id === selectedOccurrenceId)
+    return selected ? [...shown.slice(0, visibleCount - 1), selected] : shown
+  }, [dayOccurrences, visibleCount, selectedOccurrenceId])
 
   return (
     <div
@@ -133,7 +149,7 @@ const MonthDayCell: React.FC<MonthDayCellProps> = ({
 
       {/* Events preview - shows as many as fit, "+N" only for whatever's left over */}
       <div className="min-h-0 flex-1 space-y-0.5 overflow-hidden">
-        {dayOccurrences.slice(0, visibleCount).map((occ) => {
+        {visibleOccurrences.map((occ) => {
           const occTime = DateTime.fromISO(occ.startUtc, { zone: 'utc' }).setZone('local')
           return (
             <EventPill
@@ -141,6 +157,7 @@ const MonthDayCell: React.FC<MonthDayCellProps> = ({
               dense
               draggable
               isDragging={draggedOccurrenceId === occ.id}
+              isSelected={selectedOccurrenceId === occ.id}
               title={occ.title}
               color={occ.color}
               time={occ.allDay ? undefined : formatClockTime(occTime, timeFormat)}
@@ -188,6 +205,7 @@ export const MonthView: React.FC<MonthViewProps> = ({
   showLunar,
   showWeekNumbers,
   draggedOccurrenceId,
+  selectedOccurrenceId,
   dropTarget,
   onSelectDate,
   onSelectOccurrence,
@@ -302,6 +320,7 @@ export const MonthView: React.FC<MonthViewProps> = ({
                     maxVisible={maxVisible}
                     isDropTarget={isDropTarget}
                     draggedOccurrenceId={draggedOccurrenceId}
+                    selectedOccurrenceId={selectedOccurrenceId}
                     onSelectDate={onSelectDate}
                     onSelectOccurrence={onSelectOccurrence}
                     onDragStart={(e, occ) => {

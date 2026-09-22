@@ -145,6 +145,21 @@
     animation: slideInRight 220ms var(--ease-out) both;
   }
 
+  /* Where the keyboard is inside a form. Only ever drawn for keyboard focus, so
+     a pointer user never sees it - which is why the ghost controls can keep
+     suppressing the browser's own focus outline on :focus. */
+  .gc-focus-ring:focus-visible,
+  .gc-focus-ring:has(:focus-visible) {
+    outline: 2px solid var(--color-accent-mark);
+    outline-offset: -1px;
+  }
+
+  /* The option the arrow keys are resting on, inside an open picker popover. */
+  .gc-option-active {
+    background: color-mix(in srgb, var(--color-accent-mark) 18%, transparent);
+    box-shadow: inset 0 0 0 1px var(--color-accent-mark);
+  }
+
   .gc-icon-btn {
     @apply cursor-pointer rounded-[3px] p-2 text-muted transition-colors duration-150 hover:bg-hover hover:text-primary;
   }
@@ -267,6 +282,18 @@
 
   .gc-event:active {
     transform: scale(0.985);
+  }
+
+  /* Where the keyboard cursor is sitting. A ring outside the block rather than
+     an inset one: events are solid colour blocks, so an inset ring reads as a
+     border on the event itself and disappears against a pale pastel. */
+  .gc-event.is-key-selected {
+    outline: 2px solid var(--color-text-main);
+    outline-offset: 1px;
+    box-shadow:
+      0 0 0 1px var(--color-bg-surface),
+      0 6px 16px color-mix(in srgb, black 24%, transparent);
+    z-index: 40;
   }
 
   .gc-event.is-dragging {

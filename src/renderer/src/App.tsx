@@ -12,6 +12,7 @@ import type {
   SyncConflict
 } from '@shared/event-model'
 import type { CalendarViewType } from '@shared/visible-range'
+import { sortForCursor, stepCursor, nudgedRange, resizedRange } from '@shared/keyboard-nav'
 import { useVisibleRange } from './hooks/use-visible-range'
 import { useTheme } from './hooks/use-theme'
 import MonthView from './views/MonthView'
@@ -79,6 +80,10 @@ export const App: React.FC = () => {
 
   const [calendars, setCalendars] = useState<Calendar[]>([])
   const [occurrences, setOccurrences] = useState<ExpandedOccurrence[]>([])
+  // Which occurrence the keyboard cursor is sitting on. Kept as a pair because
+  // an occurrence id is `${eventId}_${originalStartUtc}` - moving a one-off
+  // event re-keys it, and the event id is what survives that.
+  const [selection, setSelection] = useState<{ occurrenceId: string; eventId: string } | null>(null)
 
   const [isEditorOpen, setIsEditorOpen] = useState(false)
   const [editorData, setEditorData] = useState<EventEditorInitialData | null>(null)
@@ -368,54 +373,6 @@ export const App: React.FC = () => {
   )
 
   useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      const target = e.target as HTMLElement
-      const isInput =
-        target &&
-        (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable)
-
-      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
-        e.preventDefault()
-        setIsSearchPaletteOpen((prev) => !prev)
-        return
-      }
-
-      if (isInput) return
-
-      if (e.key === 't' || e.key === 'T') {
-        e.preventDefault()
-        setAnchorDate(DateTime.local())
-      } else if (e.key === '1') {
-        e.preventDefault()
-        setCurrentView('day')
-      } else if (e.key === '2') {
-        e.preventDefault()
-        setCurrentView('week')
-      } else if (e.key === '3') {
-        e.preventDefault()
-        setCurrentView('month')
-      } else if (e.key === '4') {
-        e.preventDefault()
-        setCurrentView('year')
-      } else if (e.key === '5') {
-        e.preventDefault()
-        setCurrentView('list')
-      } else if (e.key === 'n' || e.key === 'N' || e.key === 'c' || e.key === 'C') {
-        e.preventDefault()
-        openEditorForDate(anchorDate)
-      } else if (e.key === '?' || e.key === 'F1') {
-        e.preventDefault()
-        setIsShortcutsModalOpen((prev) => !prev)
-      } else if (e.key === '/' && !e.ctrlKey && !e.metaKey) {
-        e.preventDefault()
-        setIsSearchPaletteOpen(true)
-      }
-    }
-    window.addEventListener('keydown', handleKeyDown)
-    return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [anchorDate, openEditorForDate])
-
-  useEffect(() => {
     const initApp = async (): Promise<void> => {
       if (window.xrncal?.app) {
         try {
@@ -481,7 +438,7 @@ export const App: React.FC = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  const handlePrev = () => {
+  const handlePrev = useCallback(() => {
     switch (currentView) {
       case 'day':
         setAnchorDate((d) => d.minus({ days: 1 }))
@@ -497,9 +454,9 @@ export const App: React.FC = () => {
         setAnchorDate((d) => d.minus({ years: 1 }))
         break
     }
-  }
+  }, [currentView])
 
-  const handleNext = () => {
+  const handleNext = useCallback(() => {
     switch (currentView) {
       case 'day':
         setAnchorDate((d) => d.plus({ days: 1 }))
@@ -515,7 +472,7 @@ export const App: React.FC = () => {
         setAnchorDate((d) => d.plus({ years: 1 }))
         break
     }
-  }
+  }, [currentView])
 
   const setLanguage = async (next: AppLocale): Promise<void> => {
     if (next === i18n.language) return
@@ -573,10 +530,10 @@ export const App: React.FC = () => {
       await window.xrncal.settings.set('suggestionShowCalendarName', next)
   }
 
-  const toggleMiniCalendar = async (enabled: boolean) => {
+  const toggleMiniCalendar = useCallback(async (enabled: boolean) => {
     setShowMiniCalendar(enabled)
     if (window.xrncal?.settings) await window.xrncal.settings.set('showMiniCalendar', enabled)
-  }
+  }, [])
 
   const toggleCalendarVisibility = async (cal: Calendar) => {
     if (window.xrncal?.calendars) {
@@ -712,6 +669,7 @@ export const App: React.FC = () => {
   const handleSelectOccurrence = useCallback(
     (occ: ExpandedOccurrence) => {
       if (wasJustDragging()) return
+      setSelection({ occurrenceId: occ.id, eventId: occ.eventId })
       setEditorData({ occurrence: occ })
       setIsEditorOpen(true)
     },
@@ -809,6 +767,315 @@ export const App: React.FC = () => {
     }
   }
 
+  // ─────────────────────────────────────────────────────────────────────────
+  // Keyboard control
+  //
+  // Everything the mouse can do to an event - open it, delete it, move it,
+  // stretch it - needs some way of saying *which* event without pointing at
+  // one. That is the cursor: an occurrence drawn with a ring, walked with the
+  // up/down arrows, acted on by everything else.
+  // ─────────────────────────────────────────────────────────────────────────
+
+  const orderedOccurrences = useMemo(() => sortForCursor(occurrences), [occurrences])
+
+  const selectedOccurrence = useMemo(
+    () => occurrences.find((o) => o.id === selection?.occurrenceId) ?? null,
+    [occurrences, selection]
+  )
+
+  // A reload re-keys occurrences, so a keyboard move changes the very id the
+  // cursor is holding: a one-off event's id is built from the start time the
+  // move just changed. Re-find it by its event instead of dropping the cursor
+  // after every nudge - but only for one-off events. A recurring occurrence is
+  // keyed by its *original* start, which a move never touches, so matching one
+  // by event id would only ever catch the wrong instance: paging to next week
+  // would drag the cursor onto that week's copy of a weekly meeting.
+  useEffect(() => {
+    setSelection((prev) => {
+      if (!prev) return prev
+      if (occurrences.some((o) => o.id === prev.occurrenceId)) return prev
+      const sameEvent = occurrences.filter((o) => o.eventId === prev.eventId && !o.isRecurring)
+      return sameEvent.length === 1
+        ? { occurrenceId: sameEvent[0].id, eventId: prev.eventId }
+        : null
+    })
+  }, [occurrences])
+
+  // Keep the cursor on screen: Week and Day scroll a 24-hour grid, List scrolls
+  // weeks of events. One query from up here beats a ref in every view.
+  useEffect(() => {
+    if (!selection) return
+    const frame = requestAnimationFrame(() => {
+      document
+        .querySelector('[data-selected-occurrence]')
+        ?.scrollIntoView({ block: 'nearest', inline: 'nearest' })
+    })
+    return () => cancelAnimationFrame(frame)
+  }, [selection, currentView])
+
+  const moveCursor = useCallback(
+    (direction: 1 | -1) => {
+      const next = stepCursor(
+        orderedOccurrences,
+        selection?.occurrenceId ?? null,
+        direction,
+        anchorDate.toFormat('yyyy-MM-dd')
+      )
+      if (next) setSelection({ occurrenceId: next.id, eventId: next.eventId })
+    },
+    [orderedOccurrences, selection, anchorDate]
+  )
+
+  // Shift/Alt + arrows go through the same commit path as a drag or an
+  // edge-resize, so read-only calendars, recurring scope and stale-id recovery
+  // all behave exactly as they do with a mouse.
+  const nudgeSelected = useCallback(
+    (delta: { days?: number; minutes?: number }, mode: 'move' | 'resize') => {
+      if (!selectedOccurrence) return
+      const range =
+        mode === 'move'
+          ? nudgedRange(selectedOccurrence, delta)
+          : resizedRange(selectedOccurrence, delta.minutes ?? 0, dragSnapMinutes)
+      if (!range) return
+      void handleDirectMove(selectedOccurrence, range.start, range.end, false)
+    },
+    [selectedOccurrence, dragSnapMinutes, handleDirectMove]
+  )
+
+  const deleteSelected = useCallback(() => {
+    if (!selectedOccurrence) return
+    const cal = calendars.find((c) => c.id === selectedOccurrence.calendarId)
+    if (cal?.isReadOnly) {
+      toast.error(t('toast.readOnlyTitle'), { description: t('toast.readOnlyDelete') })
+      return
+    }
+    void handleDeleteEvent(
+      selectedOccurrence.eventId,
+      selectedOccurrence.originalStartUtc || selectedOccurrence.startUtc,
+      selectedOccurrence.isRecurring
+    )
+  }, [selectedOccurrence, calendars]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const syncNow = useCallback(async () => {
+    if (!window.xrncal?.sync?.triggerNow) return
+    try {
+      const res = await window.xrncal.sync.triggerNow()
+      await loadCalendarsAndEvents()
+      toast.success(t('toast.syncDone'), { description: res.message || undefined })
+    } catch (err) {
+      showFriendlyError(err, t('toast.syncFailed'))
+    }
+  }, [loadCalendarsAndEvents, t])
+
+  // A layer above the calendar is taking keys: a bare letter must not reach
+  // through a dialog and switch the view behind it.
+  const isOverlayOpen =
+    isEditorOpen ||
+    isSettingsOpen ||
+    isAccountModalOpen ||
+    isShortcutsModalOpen ||
+    isConflictsModalOpen ||
+    isSearchPaletteOpen ||
+    Boolean(pendingRecurringScope) ||
+    Boolean(pendingDrop)
+
+  // These three close themselves on Escape. Handling it here as well would
+  // close two layers with one press.
+  const ownsEscape = isEditorOpen || isSearchPaletteOpen || Boolean(pendingDrop)
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement
+      const isInput =
+        target &&
+        (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable)
+
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
+        if (isOverlayOpen && !isSearchPaletteOpen) return
+        e.preventDefault()
+        setIsSearchPaletteOpen((prev) => !prev)
+        return
+      }
+
+      if (e.key === 'Escape') {
+        if (ownsEscape) return
+        e.preventDefault()
+        if (pendingRecurringScope) setPendingRecurringScope(null)
+        else if (isShortcutsModalOpen) setIsShortcutsModalOpen(false)
+        else if (isConflictsModalOpen) setIsConflictsModalOpen(false)
+        else if (isAccountModalOpen) setIsAccountModalOpen(false)
+        else if (isSettingsOpen) setIsSettingsOpen(false)
+        else setSelection(null)
+        return
+      }
+
+      if (isInput || isOverlayOpen) return
+
+      // Enter and Space belong to whatever control has focus. Claiming them
+      // here would stop Tab + Enter from pressing a button, which is the other
+      // half of getting around without a mouse.
+      if (
+        (e.key === 'Enter' || e.key === ' ') &&
+        target &&
+        ['BUTTON', 'A', 'SELECT'].includes(target.tagName)
+      ) {
+        return
+      }
+
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'b') {
+        e.preventDefault()
+        // With the mini calendar switched off there is no sidebar to collapse,
+        // so the first press is what puts one there rather than doing nothing.
+        if (showMiniCalendar) setSidebarCollapsed((v) => !v)
+        else {
+          setSidebarCollapsed(false)
+          void toggleMiniCalendar(true)
+        }
+        return
+      }
+      // Anything else held with Ctrl/Cmd belongs to Electron (reload, quit…).
+      if (e.ctrlKey || e.metaKey) return
+
+      // Shift/Alt + arrows act on the event under the cursor rather than on the
+      // cursor itself: Shift moves it, Alt stretches its end.
+      if (selectedOccurrence && (e.shiftKey || e.altKey) && e.key.startsWith('Arrow')) {
+        const isResize = e.altKey && !e.shiftKey
+        let handled = true
+        switch (e.key) {
+          case 'ArrowUp':
+            nudgeSelected({ minutes: -dragSnapMinutes }, isResize ? 'resize' : 'move')
+            break
+          case 'ArrowDown':
+            nudgeSelected({ minutes: dragSnapMinutes }, isResize ? 'resize' : 'move')
+            break
+          case 'ArrowLeft':
+            if (isResize) handled = false
+            else nudgeSelected({ days: -1 }, 'move')
+            break
+          case 'ArrowRight':
+            if (isResize) handled = false
+            else nudgeSelected({ days: 1 }, 'move')
+            break
+          default:
+            handled = false
+        }
+        if (handled) {
+          e.preventDefault()
+          return
+        }
+      }
+
+      const key = e.key.length === 1 ? e.key.toLowerCase() : e.key
+
+      switch (key) {
+        // Time
+        case 't':
+          setAnchorDate(DateTime.local())
+          break
+        case 'k':
+        case 'ArrowLeft':
+        case 'PageUp':
+          handlePrev()
+          break
+        case 'j':
+        case 'ArrowRight':
+        case 'PageDown':
+          handleNext()
+          break
+
+        // The cursor. Year view draws no events, so there is nothing to walk.
+        case 'ArrowDown':
+          if (currentView === 'year') return
+          moveCursor(1)
+          break
+        case 'ArrowUp':
+          if (currentView === 'year') return
+          moveCursor(-1)
+          break
+        case 'Enter':
+          if (selectedOccurrence) handleSelectOccurrence(selectedOccurrence)
+          else openEditorForDate(anchorDate)
+          break
+        case 'Delete':
+        case 'Backspace':
+          if (!selectedOccurrence) return
+          deleteSelected()
+          break
+
+        // Views
+        case '1':
+        case 'd':
+          setCurrentView('day')
+          break
+        case '2':
+        case 'w':
+          setCurrentView('week')
+          break
+        case '3':
+        case 'm':
+          setCurrentView('month')
+          break
+        case '4':
+        case 'y':
+          setCurrentView('year')
+          break
+        case '5':
+        case 'l':
+          setCurrentView('list')
+          break
+
+        // Actions
+        case 'n':
+        case 'c':
+          openEditorForDate(anchorDate)
+          break
+        case '/':
+          setIsSearchPaletteOpen(true)
+          break
+        case '?':
+        case 'F1':
+          setIsShortcutsModalOpen((prev) => !prev)
+          break
+        case ',':
+          setSettingsSection(null)
+          setIsSettingsOpen(true)
+          break
+        case 'r':
+          void syncNow()
+          break
+        default:
+          return
+      }
+      e.preventDefault()
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [
+    anchorDate,
+    currentView,
+    deleteSelected,
+    dragSnapMinutes,
+    handleNext,
+    handlePrev,
+    handleSelectOccurrence,
+    isAccountModalOpen,
+    isConflictsModalOpen,
+    isOverlayOpen,
+    isSearchPaletteOpen,
+    isSettingsOpen,
+    isShortcutsModalOpen,
+    moveCursor,
+    nudgeSelected,
+    openEditorForDate,
+    ownsEscape,
+    pendingRecurringScope,
+    selectedOccurrence,
+    showMiniCalendar,
+    syncNow,
+    toggleMiniCalendar
+  ])
+
   return (
     <DisplayPreferencesProvider value={{
         timeFormat,
@@ -849,7 +1116,7 @@ export const App: React.FC = () => {
       {(() => {
           const header = (
             <AppHeader
-              title={currentView === 'week' || currentView === 'year' ? '' : visibleRange.label}
+              title={currentView === 'week' ? '' : visibleRange.label}
               currentView={currentView}
               showSidebarToggle={showMiniCalendar}
               onToggleSidebar={() => setSidebarCollapsed((v) => !v)}
@@ -919,6 +1186,7 @@ export const App: React.FC = () => {
               onSelectDate={openEditorForDate}
               onSelectOccurrence={handleSelectOccurrence}
               draggedOccurrenceId={draggedOccurrence?.id}
+              selectedOccurrenceId={selection?.occurrenceId}
               dropTarget={dropTarget}
               onDragStart={handleDragStart}
               onDragEnd={handleDragEnd}
@@ -950,6 +1218,7 @@ export const App: React.FC = () => {
               onPrevWeek={handlePrev}
               onNextWeek={handleNext}
               draggedOccurrenceId={draggedOccurrence?.id}
+              selectedOccurrenceId={selection?.occurrenceId}
               dropTarget={dropTarget}
               onDragStart={handleDragStart}
               onDragEnd={handleDragEnd}
@@ -979,6 +1248,7 @@ export const App: React.FC = () => {
               }}
               onSelectOccurrence={handleSelectOccurrence}
               draggedOccurrenceId={draggedOccurrence?.id}
+              selectedOccurrenceId={selection?.occurrenceId}
               dropTarget={dropTarget}
               onDragStart={handleDragStart}
               onDragEnd={handleDragEnd}
@@ -1011,6 +1281,7 @@ export const App: React.FC = () => {
               anchorDate={anchorDate}
               occurrences={occurrences}
               showLunar={showLunar}
+              selectedOccurrenceId={selection?.occurrenceId}
               onSelectOccurrence={handleSelectOccurrence}
               onAddEvent={() => openEditorForDate(anchorDate)}
               onNearEdge={handleListNearEdge}

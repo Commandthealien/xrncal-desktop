@@ -14,6 +14,8 @@ import Checkbox from '../src/renderer/src/components/ui/Checkbox'
 import FormRow from '../src/renderer/src/components/ui/FormRow'
 import TextArea from '../src/renderer/src/components/ui/TextArea'
 import WeekView from '../src/renderer/src/views/WeekView'
+import KeyboardShortcutsModal from '../src/renderer/src/components/KeyboardShortcutsModal'
+import type { ExpandedOccurrence } from '../src/shared/event-model'
 
 describe('UI Components SSR Render & Lifecycle', () => {
   it('renders DatePicker', () => {
@@ -133,5 +135,59 @@ describe('UI Components SSR Render & Lifecycle', () => {
     expect(html).toContain('minmax(0,1fr)')
     expect(html).toContain('gc-week-header')
     expect(html).toContain('flex-col items-center')
+  })
+
+  it('week view rings the occurrence the keyboard cursor is on', () => {
+    // The ring is also what the scroll-into-view query at the top of App looks
+    // for, so the data attribute matters as much as the class.
+    const start = DateTime.fromISO('2026-08-19T09:00', { zone: 'local' })
+    const occurrence: ExpandedOccurrence = {
+      id: 'evt1_2026-08-19T09:00:00.000Z',
+      eventId: 'evt1',
+      calendarId: 'cal1',
+      title: 'Standup',
+      startUtc: start.toUTC().toISO()!,
+      endUtc: start.plus({ hours: 1 }).toUTC().toISO()!,
+      tzid: 'UTC',
+      allDay: false,
+      isRecurring: false,
+      isException: false,
+      originalStartUtc: start.toUTC().toISO()!
+    }
+
+    const html = renderToString(
+      React.createElement(WeekView, {
+        anchorDate: DateTime.fromISO('2026-08-19'),
+        occurrences: [occurrence],
+        showLunar: false,
+        selectedOccurrenceId: occurrence.id
+      })
+    )
+    expect(html).toContain('is-key-selected')
+    expect(html).toContain('data-selected-occurrence')
+
+    const unselected = renderToString(
+      React.createElement(WeekView, {
+        anchorDate: DateTime.fromISO('2026-08-19'),
+        occurrences: [occurrence],
+        showLunar: false
+      })
+    )
+    expect(unselected).not.toContain('is-key-selected')
+    expect(unselected).not.toContain('data-selected-occurrence')
+  })
+
+  it('shortcut sheet lists the keys that drive the app without a mouse', () => {
+    const html = renderToString(
+      React.createElement(KeyboardShortcutsModal, { isOpen: true, onClose: () => {} })
+    )
+    expect(html).toContain('Shift + ↑')
+    expect(html).toContain('Alt + ↓')
+    expect(html).toContain('Ctrl + B')
+    expect(html).toContain('Next event')
+    expect(html).toContain('Ctrl + Enter')
+    expect(html).toContain('Event editor')
+    // Every row is a real catalog string, never a raw i18n key falling through.
+    expect(html).not.toContain('shortcuts.')
   })
 })

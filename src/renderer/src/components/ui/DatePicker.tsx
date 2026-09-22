@@ -42,6 +42,7 @@ export const DatePicker: React.FC<DatePickerProps> = ({
   const [coords, setCoords] = useState<{ top: number; left: number } | null>(null)
   const containerRef = useRef<HTMLDivElement>(null)
   const popoverRef = useRef<HTMLDivElement>(null)
+  const triggerRef = useRef<HTMLButtonElement>(null)
 
   const parsedValue = useMemo(() => {
     if (!value) return null
@@ -50,6 +51,10 @@ export const DatePicker: React.FC<DatePickerProps> = ({
   }, [value])
 
   const [viewDate, setViewDate] = useState<DateTime>(() => parsedValue || DateTime.local())
+  // The day the arrow keys are resting on. The grid is a portal at the end of
+  // <body>, so tabbing into it is not an option: focus stays on the trigger and
+  // this cursor is what moves.
+  const [activeDate, setActiveDate] = useState<DateTime | null>(null)
 
   const updateCoords = () => {
     if (!containerRef.current) return
@@ -79,6 +84,7 @@ export const DatePicker: React.FC<DatePickerProps> = ({
     if (!isOpen) return
 
     setViewDate(parsedValue || DateTime.local())
+    setActiveDate(parsedValue || DateTime.local())
     updateCoords()
 
     const handleScrollOrResize = () => {
@@ -107,9 +113,82 @@ export const DatePicker: React.FC<DatePickerProps> = ({
       }
     }
 
+    // The effect re-registers whenever activeDate changes, so the value closed
+    // over here is always the current one - no updater needed, and none wanted:
+    // a second setState inside one would be a side effect in a pure function.
+    const move = (shift: (d: DateTime) => DateTime) => {
+      const next = shift(activeDate || parsedValue || DateTime.local())
+      setActiveDate(next)
+      setViewDate(next)
+    }
+
+    const close = () => {
+      setIsOpen(false)
+      triggerRef.current?.focus()
+    }
+
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        setIsOpen(false)
+      switch (e.key) {
+        case 'Escape':
+          // Without stopPropagation this same Escape carries on to the dialog
+          // hosting the field and closes that too.
+          e.preventDefault()
+          e.stopPropagation()
+          close()
+          break
+        case 'ArrowLeft':
+          e.preventDefault()
+          move((d) => d.minus({ days: 1 }))
+          break
+        case 'ArrowRight':
+          e.preventDefault()
+          move((d) => d.plus({ days: 1 }))
+          break
+        case 'ArrowUp':
+          e.preventDefault()
+          move((d) => d.minus({ weeks: 1 }))
+          break
+        case 'ArrowDown':
+          e.preventDefault()
+          move((d) => d.plus({ weeks: 1 }))
+          break
+        case 'PageUp':
+          e.preventDefault()
+          move((d) => (e.shiftKey ? d.minus({ years: 1 }) : d.minus({ months: 1 })))
+          break
+        case 'PageDown':
+          e.preventDefault()
+          move((d) => (e.shiftKey ? d.plus({ years: 1 }) : d.plus({ months: 1 })))
+          break
+        case 'Home':
+          e.preventDefault()
+          move((d) => d.startOf('week'))
+          break
+        case 'End':
+          e.preventDefault()
+          move((d) => d.endOf('week').startOf('day'))
+          break
+        case 't':
+        case 'T':
+          e.preventDefault()
+          move(() => DateTime.local())
+          break
+        case 'Enter':
+          // preventDefault also stops the browser replaying this keydown as a
+          // click on the still-focused trigger, which would reopen the grid.
+          e.preventDefault()
+          if (activeDate && !isOutOfRange(activeDate)) {
+            handleSelectDate(activeDate)
+            triggerRef.current?.focus()
+          }
+          break
+        case 'Tab':
+          // Portalled grid: Tab would strand focus at the end of <body>.
+          e.preventDefault()
+          close()
+          break
+        default:
+          break
       }
     }
 
@@ -119,7 +198,8 @@ export const DatePicker: React.FC<DatePickerProps> = ({
       document.removeEventListener('mousedown', handleClickOutside)
       document.removeEventListener('keydown', handleKeyDown)
     }
-  }, [isOpen])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen, activeDate, parsedValue, minDate, maxDate])
 
   const calendarGrid = useMemo(() => {
     const startOfMonth = viewDate.startOf('month')
@@ -137,6 +217,18 @@ export const DatePicker: React.FC<DatePickerProps> = ({
 
     return days
   }, [viewDate])
+
+  const isOutOfRange = (day: DateTime): boolean => {
+    if (minDate) {
+      const minDt = DateTime.fromISO(minDate)
+      if (minDt.isValid && day < minDt.startOf('day')) return true
+    }
+    if (maxDate) {
+      const maxDt = DateTime.fromISO(maxDate)
+      if (maxDt.isValid && day > maxDt.endOf('day')) return true
+    }
+    return false
+  }
 
   const handleSelectDate = (date: DateTime) => {
     onChange(date.toFormat('yyyy-MM-dd'))
@@ -281,15 +373,8 @@ export const DatePicker: React.FC<DatePickerProps> = ({
                 const isToday = day.hasSame(today, 'day')
                 const isSelected = Boolean(parsedValue && day.hasSame(parsedValue, 'day'))
 
-                let isDisabled = false
-                if (minDate) {
-                  const minDt = DateTime.fromISO(minDate)
-                  if (minDt.isValid && day < minDt.startOf('day')) isDisabled = true
-                }
-                if (maxDate) {
-                  const maxDt = DateTime.fromISO(maxDate)
-                  if (maxDt.isValid && day > maxDt.endOf('day')) isDisabled = true
-                }
+                const isDisabled = isOutOfRange(day)
+                const isActive = Boolean(activeDate && day.hasSame(activeDate, 'day'))
 
                 return (
                   <button
@@ -305,7 +390,9 @@ export const DatePicker: React.FC<DatePickerProps> = ({
                           : isCurrentMonth
                             ? 'text-primary hover:bg-hover'
                             : 'text-muted/60 hover:bg-hover'
-                    } ${isDisabled ? 'opacity-20 cursor-not-allowed' : ''}`}
+                    } ${isActive && !isSelected ? 'gc-option-active' : ''} ${
+                      isDisabled ? 'opacity-20 cursor-not-allowed' : ''
+                    }`}
                     style={{ borderRadius: 'var(--radius-control)' }}
                   >
                     {day.day}
@@ -349,10 +436,20 @@ export const DatePicker: React.FC<DatePickerProps> = ({
 
       {/* Trigger Button — ghost: transparent, hairline on hover */}
       <button
+        ref={triggerRef}
         type="button"
         disabled={disabled}
+        aria-haspopup="dialog"
+        aria-expanded={isOpen}
         onClick={() => !disabled && setIsOpen((prev) => !prev)}
-        className={`flex items-center justify-between gap-1.5 w-full text-left select-none cursor-pointer overflow-hidden transition-colors duration-100 bg-transparent border outline-none focus:outline-none focus:ring-0 focus-visible:outline-none ${
+        onKeyDown={(e) => {
+          if (disabled || isOpen) return
+          if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+            e.preventDefault()
+            setIsOpen(true)
+          }
+        }}
+        className={`gc-focus-ring flex items-center justify-between gap-1.5 w-full text-left select-none cursor-pointer overflow-hidden transition-colors duration-100 bg-transparent border outline-none focus:outline-none focus:ring-0 ${
           isOpen ? 'border-hairline bg-hover/40' : 'border-transparent hover:border-hairline hover:bg-hover/30'
         } ${compact ? 'px-2 py-1 text-xs' : 'px-2.5 py-1.5 text-xs'} ${
           disabled ? 'opacity-50 cursor-not-allowed' : ''

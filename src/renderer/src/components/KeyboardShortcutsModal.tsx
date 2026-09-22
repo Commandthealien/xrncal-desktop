@@ -7,6 +7,12 @@ interface KeyboardShortcutsModalProps {
   onClose: () => void
 }
 
+interface Shortcut {
+  /** One entry per interchangeable way of pressing it; drawn as separate keycaps. */
+  keys: string[]
+  description: string
+}
+
 export const KeyboardShortcutsModal: React.FC<KeyboardShortcutsModalProps> = ({
   isOpen,
   onClose
@@ -14,39 +20,73 @@ export const KeyboardShortcutsModal: React.FC<KeyboardShortcutsModalProps> = ({
   const { t } = useTranslation()
   if (!isOpen) return null
 
-  const groups = [
+  const groups: { title: string; shortcuts: Shortcut[] }[] = [
     {
       title: t('shortcuts.navGroup'),
       shortcuts: [
-        { key: 'T', description: t('shortcuts.goToday') },
-        { key: 'J / →', description: t('shortcuts.nextPeriod') },
-        { key: 'K / ←', description: t('shortcuts.prevPeriod') }
+        { keys: ['T'], description: t('shortcuts.goToday') },
+        { keys: ['←', 'K', 'PgUp'], description: t('shortcuts.prevPeriod') },
+        { keys: ['→', 'J', 'PgDn'], description: t('shortcuts.nextPeriod') }
       ]
     },
     {
       title: t('shortcuts.viewsGroup'),
       shortcuts: [
-        { key: '1', description: t('shortcuts.dayView') },
-        { key: '2', description: t('shortcuts.weekView') },
-        { key: '3', description: t('shortcuts.monthView') },
-        { key: '4', description: t('shortcuts.yearView') },
-        { key: '5', description: t('shortcuts.listView') }
+        { keys: ['1', 'D'], description: t('shortcuts.dayView') },
+        { keys: ['2', 'W'], description: t('shortcuts.weekView') },
+        { keys: ['3', 'M'], description: t('shortcuts.monthView') },
+        { keys: ['4', 'Y'], description: t('shortcuts.yearView') },
+        { keys: ['5', 'L'], description: t('shortcuts.listView') }
+      ]
+    },
+    {
+      title: t('shortcuts.selectionGroup'),
+      shortcuts: [
+        { keys: ['↓'], description: t('shortcuts.nextEvent') },
+        { keys: ['↑'], description: t('shortcuts.prevEvent') },
+        { keys: ['Enter'], description: t('shortcuts.openEvent') },
+        { keys: ['Del', '⌫'], description: t('shortcuts.deleteEvent') },
+        { keys: ['Esc'], description: t('shortcuts.clearSelection') }
+      ]
+    },
+    {
+      title: t('shortcuts.moveGroup'),
+      shortcuts: [
+        { keys: ['Shift + ↑', 'Shift + ↓'], description: t('shortcuts.moveByStep') },
+        { keys: ['Shift + ←', 'Shift + →'], description: t('shortcuts.moveByDay') },
+        { keys: ['Alt + ↑', 'Alt + ↓'], description: t('shortcuts.resizeByStep') }
+      ]
+    },
+    {
+      title: t('shortcuts.editorGroup'),
+      shortcuts: [
+        { keys: ['Enter'], description: t('shortcuts.saveFromTitle') },
+        { keys: ['Ctrl + Enter'], description: t('shortcuts.saveEvent') },
+        { keys: ['Ctrl + ⌫'], description: t('shortcuts.deleteEditorEvent') },
+        { keys: ['Esc'], description: t('shortcuts.closeEditor') },
+        { keys: ['↑', '↓'], description: t('shortcuts.pickerMove') },
+        { keys: ['Enter'], description: t('shortcuts.pickerPick') },
+        { keys: ['PgUp', 'PgDn'], description: t('shortcuts.pickerMonth') },
+        { keys: ['T'], description: t('shortcuts.pickerToday') }
       ]
     },
     {
       title: t('shortcuts.actionsGroup'),
       shortcuts: [
-        { key: `N ${t('shortcuts.orKey')} C`, description: t('shortcuts.createEvent') },
-        { key: `Ctrl + K ${t('shortcuts.orKey')} /`, description: t('shortcuts.searchPalette') },
-        { key: 'Esc', description: t('shortcuts.closeDialog') },
-        { key: '?', description: t('shortcuts.openShortcuts') }
+        { keys: ['N', 'C'], description: t('shortcuts.createEvent') },
+        { keys: ['Ctrl + K', '/'], description: t('shortcuts.searchPalette') },
+        { keys: ['Ctrl + B'], description: t('shortcuts.toggleSidebar') },
+        { keys: ['R'], description: t('shortcuts.syncNow') },
+        { keys: [','], description: t('shortcuts.openSettings') },
+        { keys: ['?'], description: t('shortcuts.openShortcuts') },
+        { keys: ['Esc'], description: t('shortcuts.closeDialog') }
       ]
     }
   ]
 
   return (
     <div className="gc-overlay select-none">
-      <div className="gc-dialog w-full max-w-lg">
+      <div className="gc-dialog w-full max-w-3xl">
         <div className="flex items-center justify-between border-b border-hairline bg-app px-6 py-4">
           <div className="flex items-center gap-2">
             <Keyboard className="h-5 w-5 text-accent" />
@@ -57,24 +97,31 @@ export const KeyboardShortcutsModal: React.FC<KeyboardShortcutsModalProps> = ({
           </button>
         </div>
 
-        <div className="p-6 space-y-5 overflow-y-auto max-h-[70vh]">
+        {/* Two columns: the sheet is long enough now that one would scroll past
+            the fold on any laptop. */}
+        <div className="grid gap-x-8 gap-y-5 overflow-y-auto p-6 max-h-[70vh] sm:grid-cols-2">
           {groups.map((grp) => (
             <div key={grp.title} className="space-y-2">
-              <h4 className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
-                {grp.title}
-              </h4>
+              <h4 className="text-xs font-bold uppercase tracking-wider text-muted">{grp.title}</h4>
               <div className="grid gap-1.5">
                 {grp.shortcuts.map((s) => (
                   <div
-                    key={s.key}
-                    className="flex items-center justify-between p-2 rounded-xl bg-slate-50 dark:bg-slate-950/50 border border-slate-200 dark:border-slate-800/80 text-xs"
+                    key={s.description}
+                    className="flex items-center justify-between gap-3 rounded-[3px] border border-hairline bg-app px-2 py-1.5 text-xs"
                   >
-                    <span className="text-slate-700 dark:text-slate-300 font-medium">
-                      {s.description}
+                    <span className="min-w-0 font-medium text-primary">{s.description}</span>
+                    <span className="flex shrink-0 items-center gap-1">
+                      {s.keys.map((k, i) => (
+                        <React.Fragment key={k}>
+                          {i > 0 && (
+                            <span className="text-[10px] text-muted">{t('shortcuts.orKey')}</span>
+                          )}
+                          <kbd className="rounded-[3px] border border-hairline bg-hover px-1.5 py-0.5 font-mono text-[11px] font-semibold text-accent">
+                            {k}
+                          </kbd>
+                        </React.Fragment>
+                      ))}
                     </span>
-                    <kbd className="px-2 py-1 bg-slate-200 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-indigo-600 dark:text-indigo-300 rounded-lg font-mono text-[11px] font-semibold shadow-xs">
-                      {s.key}
-                    </kbd>
                   </div>
                 ))}
               </div>

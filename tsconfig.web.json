@@ -42,6 +42,8 @@
     "tests/drop-target.test.ts",
     "tests/resize-math.test.ts",
     "tests/i18n-parity.test.ts",
-    "tests/layout-allday-events.test.ts"
+    "tests/layout-allday-events.test.ts",
+    "tests/roving-index.test.ts",
+    "tests/wheel-navigation.test.ts"
   ]
 }
