@@ -91,14 +91,11 @@ const MonthCard = React.memo<MonthCardProps>(
           ))}
         </div>
 
-        {/* flex-1 + explicit rows: the cells absorb whatever height the page
-            has left, so twelve months fill the viewport exactly instead of
-            overflowing it. */}
-        {/* `1fr` rows alone stretched each week row to fill the card, so a
-            10px number sat in a 24px slot and the month read as loose. The
-            height is capped in CSS (.gc-year-month-grid) and the card centres
-            what is left, which tightens the days and turns the slack into
-            spacing between months. */}
+        {/* flex-1 + six explicit `1fr` rows: the cells absorb whatever height
+            the card has left after the label and the weekday row, so twelve
+            months fill the viewport exactly instead of overflowing it. Six
+            rows always, whatever the month's shape, so every card is the same
+            height and the grid stays even. */}
         <div
           className="gc-year-month-grid grid min-h-0 flex-1 grid-cols-7 text-center"
           style={{ gridTemplateRows: `repeat(${WEEK_ROWS}, minmax(0, 1fr))` }}
@@ -223,20 +220,19 @@ export const YearView: React.FC<YearViewProps> = ({
       onWheel={handleWheel}
       className="gc-year-view flex h-full w-full min-h-0 flex-col overflow-hidden bg-surface select-none"
     >
-      {/* Three columns on a phone, four once there is room, six on a wide
-          desktop - always a whole number of rows, so the grid divides the
-          page without a partial row at the bottom. */}
-      {/* Rows are sized to their content rather than stretched to `1fr`:
-          stretching spread twelve months over the full height and dumped all
-          the slack between the week rows, which is what made the days look
-          loose. The leftover height is then banked at the top and bottom edges
-          rather than dealt out between the rows (`.gc-year-grid` in index.css),
-          which keeps the twelve cards a gap apart: `content-evenly` did the
-          latter, and on a tall window it pushed the months far enough apart
-          that the year stopped reading as one block. */}
+      {/* Three columns on a phone, four once there is room - always a whole
+          number of rows, so the grid divides the page without a partial row at
+          the bottom. Six columns is left to the short-and-wide media query in
+          index.css: now that the cards fill the page rather than sitting at a
+          capped height, six columns on a tall 16:9 screen gives two rows of
+          very tall cards and stretches every day cell into a thin column. */}
+      {/* The rows stretch to fill the page, so the twelve cards divide the
+          viewport between them and each month grows with the window rather
+          than sitting at a fixed size in the middle of it. See `.gc-year-grid`
+          in index.css for the two ways of doing this that looked wrong. */}
       <div
         ref={gridRef}
-        className="gc-year-grid grid min-h-0 flex-1 grid-cols-3 gap-x-2 gap-y-2 overflow-y-auto p-2 sm:grid-cols-4 sm:gap-x-3 sm:gap-y-3 sm:p-4 2xl:grid-cols-6">
+        className="gc-year-grid grid min-h-0 flex-1 grid-cols-3 gap-x-2 gap-y-2 overflow-y-auto p-2 sm:grid-cols-4 sm:gap-x-3 sm:gap-y-3 sm:p-4">
         {MONTHS.map((month) => (
           <MonthCard
             key={month}

@@ -469,18 +469,17 @@
   display: none;
 }
 
-/* The twelve cards stay a gap apart and the page's leftover height collects at
-   the top and bottom edges. Sharing that slack between the rows instead
-   (`align-content: space-evenly`) pushed the months so far apart on a tall
-   window that the year stopped reading as one block.
+/* The rows stretch to fill the page - the grid's default `align-content` - and
+   each card's six week rows divide the card. Between them those two rules are
+   what keep the year filling the viewport at any window size, with day cells
+   that stay roughly square because both dimensions are divided the same way.
 
-   `safe` is doing real work: a plain `center` pushes the first row above the
-   scrollport as soon as the grid overflows a short window, and January becomes
-   unreachable. `safe` falls back to start in exactly that case. */
-.gc-year-grid {
-  align-content: safe center;
-}
-
+   Two earlier attempts are worth not repeating. Capping the week rows at a
+   fixed pixel height left the twelve months huddled in the middle of a tall
+   window, 120px of dead space above and below them and every cell twice as
+   wide as it was tall. Centring the rows instead of stretching them only moved
+   that void around, and `space-evenly` pushed the months so far apart that the
+   year stopped reading as one block. */
 .gc-year-grid > * {
   /* Month label + weekday row + six week rows, at their smallest legible size. */
   min-height: 118px;
@@ -489,28 +488,6 @@
 @media (min-width: 640px) {
   .gc-year-grid > * {
     min-height: 140px;
-  }
-}
-
-/* Week rows stop growing once they are comfortable for the digits in them.
-   Without a cap they stretch to fill the card, leaving a 10px number floating
-   in a 24px slot - the month reads as a loose scatter rather than a grid. The
-   card centres the block, so the reclaimed space becomes the gap *between*
-   months, which is where it belongs. */
-.gc-year-month-grid {
-  max-height: 120px;
-}
-
-@media (min-width: 640px) {
-  .gc-year-month-grid {
-    max-height: 138px;
-  }
-}
-
-/* Where the lunar date shows, each cell carries two lines and needs the room. */
-@media (min-width: 768px) and (min-height: 620px) {
-  .gc-year-month-grid {
-    max-height: 168px;
   }
 }
 
@@ -524,11 +501,6 @@
 
   .gc-year-grid > * {
     min-height: 0;
-  }
-
-  /* Two rows have to share a short viewport, so the cap comes down with it. */
-  .gc-year-month-grid {
-    max-height: 104px;
   }
 }
 
