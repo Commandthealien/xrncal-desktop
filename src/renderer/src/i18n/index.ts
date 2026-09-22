@@ -385,7 +385,9 @@ export const resources = {
         lunarRemoveFailed: 'Failed to remove synced copies',
         icsCreated: 'Event .ics file created',
         shareFailed: 'Share failed',
-        shareError: 'Failed to share event'
+        shareError: 'Failed to share event',
+        syncDone: 'Sync complete',
+        syncFailed: 'Sync failed'
       }
     }
   },
@@ -772,7 +774,9 @@ export const resources = {
         lunarRemoveFailed: 'Xóa bản đã đồng bộ thất bại',
         icsCreated: 'Đã tạo tệp .ics của sự kiện',
         shareFailed: 'Chia sẻ thất bại',
-        shareError: 'Chia sẻ sự kiện thất bại'
+        shareError: 'Chia sẻ sự kiện thất bại',
+        syncDone: 'Đồng bộ hoàn tất',
+        syncFailed: 'Đồng bộ thất bại'
       }
     }
   }

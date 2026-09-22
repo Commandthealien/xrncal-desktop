@@ -163,7 +163,15 @@ Entry: `main.tsx` detects `#mini` URL hash to route to `MiniApp` (companion widg
 
 **`App.tsx`** orchestrates:
 - Active view routing (Day/Week/Month/Year/List)
-- Global keyboard shortcuts listener (T=today, 1–5=views, N/C=new event, /=search, ?/F1=shortcuts modal)
+- Global keyboard shortcuts listener — the app is fully drivable without a mouse: a selection
+  cursor over the on-screen occurrences (`↑`/`↓`, `Enter`, `Del`, `Shift`/`Alt`+arrows to move or
+  resize), period navigation (`T`, `←`/`K`, `→`/`J`), views (`1`–`5`, `D`/`W`/`M`/`Y`/`L`) and
+  actions (`N`/`C`, `Ctrl+K`//, `Ctrl+B`, `R`, `,`, `?`/`F1`, `Esc`). Cursor maths lives in
+  `src/shared/keyboard-nav.ts`; the ring is `.gc-event.is-key-selected`.
+- The event editor is keyboard-complete too: `Ctrl+Enter` saves, `Ctrl+⌫` deletes, `Enter` in the
+  title saves outright, and `CustomSelect` / `DatePicker` / `TimePicker` each drive their portalled
+  popover with a roving index (`src/renderer/src/lib/roving-index.ts`, `.gc-option-active`) because
+  a portal at the end of `<body>` can never be tabbed into. Keyboard focus is `.gc-focus-ring`.
 - Sidebar tabs (Calendar vs Tasks)
 - Theme background layer and the `SettingsPanel` drawer
 - Holiday toggle in sidebar

@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<paths xmlns:android="http://schemas.android.com/apk/res/android">
+    <external-path name="my_images" path="." />
+    <cache-path name="my_cache_images" path="." />
+    <!-- shareIcs writes the .ics into the cache directory before handing it
+         to the share sheet. -->
+    <cache-path name="xrncal_cache" path="." />
+    <!-- Database backups are written to <filesDir>/Documents and then shared,
+         which is how the desktop "save as" dialog is replaced. -->
+    <files-path name="xrncal_files" path="." />
+</paths>

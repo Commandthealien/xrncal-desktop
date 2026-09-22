@@ -1,5 +1,15 @@
 @import "tailwindcss";
 
+/* Tailwind v4 discovers which utilities to generate by scanning source files,
+   and it infers where to scan from the build's root. The Android build sets
+   Vite's root to `src/android`, which narrows that inference and silently
+   drops every utility used only under `src/renderer` - `min-h-0`, `h-screen`
+   and `overflow-hidden` among them, which is enough to break the app shell's
+   flex layout while leaving it looking almost right. Declaring the trees
+   explicitly makes every build scan the same files regardless of its root. */
+@source "../../../renderer";
+@source "../../../android";
+
 @custom-variant dark (&:where(.dark, .dark *));
 
 @theme inline {

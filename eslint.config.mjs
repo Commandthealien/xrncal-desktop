@@ -4,7 +4,13 @@ import reactHooks from 'eslint-plugin-react-hooks'
 import globals from 'globals'
 
 export default tseslint.config(
-  { ignores: ['out/**', 'dist/**', 'node_modules/**'] },
+  {
+    // `android/` is a generated native project: Capacitor writes the Gradle
+    // scaffolding and copies the built web bundle into
+    // android/app/src/main/assets/public. Linting it means linting our own
+    // minified output plus vendored cordova shims.
+    ignores: ['out/**', 'dist/**', 'node_modules/**', 'android/**']
+  },
   js.configs.recommended,
   ...tseslint.configs.recommended,
   {
@@ -26,6 +32,19 @@ export default tseslint.config(
   },
   {
     files: ['src/main/**/*.ts', 'src/preload/**/*.ts', 'tests/**/*.ts'],
+    languageOptions: { globals: globals.node }
+  },
+  {
+    // The Android target compiles src/main into a WebView bundle, so its own
+    // sources live in both worlds: browser APIs plus the Node globals the
+    // shims stand in for.
+    files: ['src/android/**/*.{ts,tsx}'],
+    plugins: { 'react-hooks': reactHooks },
+    rules: reactHooks.configs.recommended.rules,
+    languageOptions: { globals: { ...globals.browser, ...globals.node } }
+  },
+  {
+    files: ['scripts/**/*.{js,mjs}'],
     languageOptions: { globals: globals.node }
   }
 )

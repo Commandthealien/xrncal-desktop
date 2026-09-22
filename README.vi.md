@@ -231,13 +231,39 @@ Sao lưu bất cứ lúc nào bằng **Settings → Sao lưu cơ sở dữ liệ
 
 ### Phím tắt
 
+Toàn bộ ứng dụng dùng được mà không cần chuột. `↑` `↓` di chuyển con trỏ qua
+các sự kiện đang hiển thị; mọi phím còn lại tác động lên sự kiện đang chọn.
+
 | Phím | Việc |
 | --- | --- |
 | `T` | Về hôm nay |
-| `1` `2` `3` `4` `5` | Ngày · Tuần · Tháng · Năm · Danh sách |
+| `←` `K` · `→` `J` | Kỳ trước · kỳ kế tiếp (hoặc `PgUp` / `PgDn`) |
+| `1` `2` `3` `4` `5` | Ngày · Tuần · Tháng · Năm · Danh sách (hoặc `D` `W` `M` `Y` `L`) |
+| `↑` `↓` | Sự kiện trước · sự kiện kế tiếp |
+| `Enter` | Mở sự kiện đang chọn (hoặc tạo mới) |
+| `Del` `⌫` | Xóa sự kiện đang chọn |
+| `Shift+↑` `Shift+↓` | Dời sớm hơn · muộn hơn một bước |
+| `Shift+←` `Shift+→` | Dời lùi · tới một ngày |
+| `Alt+↑` `Alt+↓` | Rút ngắn · kéo dài giờ kết thúc |
 | `N` hoặc `C` | Tạo sự kiện |
 | `Ctrl+K` hoặc `/` | Tìm kiếm |
+| `Ctrl+B` | Ẩn / hiện thanh bên |
+| `R` | Đồng bộ ngay |
+| `,` | Cài đặt |
 | `?` hoặc `F1` | Bảng phím tắt |
+| `Esc` | Đóng hộp thoại, hoặc bỏ chọn |
+
+Trong cửa sổ sự kiện, `Tab` đi qua từng ô và mọi bộ chọn đều mở được bằng bàn
+phím: `↑` `↓` di chuyển trong danh sách, `Enter` chọn mục đang tô sáng; riêng
+lịch ngày còn nhận `←` `→` cho ngày, `PgUp` `PgDn` cho tháng (kèm `Shift` là
+năm) và `T` để về hôm nay.
+
+| Phím | Việc |
+| --- | --- |
+| `Enter` | Lưu ngay từ ô tiêu đề |
+| `Ctrl+Enter` | Lưu / tạo sự kiện từ bất kỳ ô nào |
+| `Ctrl+⌫` | Xóa sự kiện đang sửa |
+| `Esc` | Đóng bộ chọn đang mở, nếu không thì đóng cửa sổ |
 
 ---
 

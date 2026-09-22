@@ -1,0 +1,80 @@
+// Top-level build file where you can add configuration options common to all sub-projects/modules.
+
+buildscript {
+    // Declared here rather than in variables.gradle: the buildscript block is
+    // evaluated before `apply from: "variables.gradle"` runs, so a property
+    // defined there is not visible to this classpath.
+    ext.kotlinVersion = '2.0.21'
+
+    repositories {
+        google()
+        mavenCentral()
+    }
+    dependencies {
+        classpath 'com.android.tools.build:gradle:8.7.2'
+        classpath 'com.google.gms:google-services:4.4.2'
+        // The native bridge (XrncalNative, SqlStatementSplitter) is Kotlin;
+        // Capacitor's template is Java-only out of the box.
+        classpath "org.jetbrains.kotlin:kotlin-gradle-plugin:$kotlinVersion"
+
+        // NOTE: Do not place your application dependencies here; they belong
+        // in the individual module build.gradle files
+    }
+}
+
+apply from: "variables.gradle"
+
+allprojects {
+    repositories {
+        google()
+        mavenCentral()
+        // requery's sqlite-android AAR was only ever published to jcenter,
+        // which is gone; JitPack builds it from the upstream repository. It is
+        // scoped to that one group so nothing else can be resolved from here.
+        maven {
+            url 'https://jitpack.io'
+            content {
+                includeGroup 'com.github.requery'
+            }
+        }
+    }
+}
+
+/**
+ * Compile everything with a Java 21 toolchain.
+ *
+ * Capacitor 7's modules declare `sourceCompatibility = 21` but do not declare
+ * a toolchain, so they fall back to whatever JVM the Gradle daemon runs on.
+ * On a machine whose default `java` is 17 that fails with "invalid source
+ * release: 21", and telling every contributor to install and select a
+ * specific JDK is a poor substitute for the build saying what it needs.
+ *
+ * Pinning the compiler (rather than the daemon) keeps the requirement inside
+ * the build: the foojay resolver in settings.gradle provisions a matching JDK
+ * on first run, and the daemon JVM becomes irrelevant.
+ */
+subprojects {
+    plugins.withId('java-base') {
+        java {
+            toolchain {
+                languageVersion = JavaLanguageVersion.of(21)
+            }
+        }
+    }
+
+    tasks.withType(JavaCompile).configureEach {
+        javaCompiler = javaToolchains.compilerFor {
+            languageVersion = JavaLanguageVersion.of(21)
+        }
+    }
+
+    tasks.withType(org.jetbrains.kotlin.gradle.tasks.KotlinCompile).configureEach {
+        compilerOptions {
+            jvmTarget = org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_21
+        }
+    }
+}
+
+task clean(type: Delete) {
+    delete rootProject.buildDir
+}

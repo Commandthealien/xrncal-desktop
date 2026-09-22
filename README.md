@@ -113,6 +113,7 @@ All five views are React components written for this app, with no third-party ca
 ## Install
 
 To build you need **Node.js 20+** and Git. There are no prebuilt releases yet — build from source.
+Windows, Linux and Android all build from this one repository.
 
 ```bash
 git clone https://github.com/Xernnn/xrncal-desktop.git
@@ -143,6 +144,63 @@ npm run pack:win       # -> dist/  (NSIS installer, x64)
 ```
 
 Run the `.exe` in `dist/` to install. There is no macOS build.
+
+### Android
+
+The Android app is the *same* app, not a companion: the same views, the same
+database, the same three sync engines, running in a WebView instead of an
+Electron window. The UI switches to phone conventions — bottom navigation, a
+calendar drawer, full-screen sheets, swipe between periods, long-press to drag.
+
+You need the Android SDK (platform 35) and `ANDROID_HOME` set; the build fetches
+its own JDK 21 if you do not have one.
+
+```bash
+npm run pack:android           # -> android/app/build/outputs/apk/debug/app-debug.apk  (~12 MB)
+adb install -r android/app/build/outputs/apk/debug/app-debug.apk
+```
+
+`npm run android:run` builds and launches on an attached device or emulator.
+
+Touch gestures match the desktop's direct manipulation:
+
+| Gesture | Does |
+|---|---|
+| Tap an event | Open it |
+| Tap empty grid | New event at that time |
+| **Long-press an event, then drag** | Move it — drag to a screen edge to scroll to another day or hour |
+| **Long-press empty grid, then drag** | New event over the dragged time range |
+| Drag an event's top or bottom edge | Resize it |
+| Swipe left / right | Previous / next day, month or year |
+| Back | Closes the top sheet, then the drawer, then minimises |
+
+For a store build, `npm run pack:android:release` produces an R8-minified APK
+(~8 MB). Signing is opt-in and nothing secret is committed — put your keystore
+details in `~/.gradle/gradle.properties`:
+
+```properties
+xrncalStoreFile=/path/to/your.jks
+xrncalStorePassword=…
+xrncalKeyAlias=…
+xrncalKeyPassword=…
+```
+
+Without them the release build still succeeds, just unsigned.
+
+CalDAV works out of the box. Google and Microsoft need their own **mobile** OAuth
+clients, because a desktop client id will not accept a mobile redirect and an
+APK cannot keep a client secret — the Android flows are public PKCE clients:
+
+- **Google** — create an OAuth client of type *Android* in the Google Cloud
+  console, put its id in `.env` as `GOOGLE_OAUTH_CLIENT_ID`, then run
+  `npm run android:configure-oauth`. That derives the reversed-domain redirect
+  scheme and writes it where the manifest can pick it up.
+- **Microsoft** — add a *Mobile and desktop applications* platform to your Entra
+  app registration with the redirect URI `app.xrncal.android://oauth2callback`,
+  and put the client id in `.env` as `MICROSOFT_CLIENT_ID`.
+
+Without them the app still builds and runs; the Google and Microsoft connect
+buttons are simply unavailable, exactly as on desktop with no `.env`.
 
 ### Run it straight from source
 
@@ -185,7 +243,7 @@ Back it up at any time from **Settings → Back up database**, which writes a pl
 <td width="50%" valign="top">
 
 **Calendar**
-- Five views: Day, Week, Month, Year, List
+- Five views: Day, Week, Month, Year, List — each shows one period per page; Year fits all twelve months on screen and scrolls a year at a time
 - Drag and drop, edge resize, drag-select a range
 - Snap step of 15 / 30 / 60 minutes
 - Recurring edits: this one / this and future / all
@@ -231,13 +289,39 @@ Back it up at any time from **Settings → Back up database**, which writes a pl
 
 ### Keyboard shortcuts
 
+The whole app is reachable without a mouse. `↑` `↓` walk a cursor through the
+events on screen; everything else acts on whichever one it is sitting on.
+
 | Key | Action |
 | --- | --- |
 | `T` | Jump to today |
-| `1` `2` `3` `4` `5` | Day · Week · Month · Year · List |
+| `←` `K` · `→` `J` | Previous · next period (also `PgUp` / `PgDn`) |
+| `1` `2` `3` `4` `5` | Day · Week · Month · Year · List (also `D` `W` `M` `Y` `L`) |
+| `↑` `↓` | Previous · next event |
+| `Enter` | Open the selected event (or create one) |
+| `Del` `⌫` | Delete the selected event |
+| `Shift+↑` `Shift+↓` | Move it earlier · later by one snap step |
+| `Shift+←` `Shift+→` | Move it a day back · forward |
+| `Alt+↑` `Alt+↓` | Shorten · lengthen its end |
 | `N` or `C` | New event |
 | `Ctrl+K` or `/` | Search |
+| `Ctrl+B` | Show or hide the sidebar |
+| `R` | Sync now |
+| `,` | Settings |
 | `?` or `F1` | Shortcut reference |
+| `Esc` | Close the dialog, or clear the selection |
+
+In the event editor, `Tab` walks the fields and every picker opens onto the
+keyboard: `↑` `↓` move through a list, `Enter` takes the highlighted entry, and
+a date grid also takes `←` `→` for days, `PgUp` `PgDn` for months (with `Shift`,
+years) and `T` for today.
+
+| Key | Action |
+| --- | --- |
+| `Enter` | Save, straight from the title field |
+| `Ctrl+Enter` | Save / create from anywhere in the form |
+| `Ctrl+⌫` | Delete the event being edited |
+| `Esc` | Close the picker you are in, else the editor |
 
 ---
 

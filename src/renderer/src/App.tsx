@@ -48,7 +48,53 @@ const TIMEZONE_NAMES: string[] = (() => {
   }
 })()
 
-export const App: React.FC = () => {
+/**
+ * Everything a replacement chrome needs in order to drive the calendar.
+ *
+ * App owns all view state, so an alternative shell (the Android one, which
+ * uses a bottom nav and a drawer instead of a header and a sidebar) cannot
+ * simply be rendered around it. Rather than fork this container - 1,400 lines
+ * of state that would immediately drift - the chrome is injected and handed
+ * this context. The desktop build passes nothing and behaves exactly as before.
+ */
+export interface AppShellContext {
+  currentView: CalendarViewType
+  setCurrentView: (view: CalendarViewType) => void
+  anchorDate: DateTime
+  setAnchorDate: React.Dispatch<React.SetStateAction<DateTime>>
+  rangeLabel: string
+  occurrences: ExpandedOccurrence[]
+  calendars: Calendar[]
+  firstDayOfWeek: number
+  showMiniCalendar: boolean
+  conflictCount: number
+  /** True while any dialog, sheet or popover is above the calendar. The
+   *  Android shell reads it to decide whether Back should dismiss a layer or
+   *  leave the app. */
+  isOverlayOpen: boolean
+  goPrev: () => void
+  goNext: () => void
+  goToday: () => void
+  newEventOn: (date: DateTime) => void
+  openSearch: () => void
+  openSettings: () => void
+  openAccounts: () => void
+  openConflicts: () => void
+  toggleCalendarVisibility: (calendar: Calendar) => void | Promise<void>
+  refresh: () => void
+}
+
+export interface AppProps {
+  /** Replaces AppHeader. When supplied, the auto-hide header machinery is
+   *  skipped - it is pointer-driven and meaningless on a touch device. */
+  renderHeader?: (shell: AppShellContext) => React.ReactNode
+  /** Replaces AppSidebar. Receives the same context; may render nothing. */
+  renderSidebar?: (shell: AppShellContext) => React.ReactNode
+  /** Rendered last, above the toaster. Used for the Android bottom nav. */
+  renderBottomBar?: (shell: AppShellContext) => React.ReactNode
+}
+
+export const App: React.FC<AppProps> = ({ renderHeader, renderSidebar, renderBottomBar }) => {
   const { t, i18n } = useTranslation()
   const { mode, themeConfig, setThemeConfig, persistMode, loadFromSettings } = useTheme()
   const [currentView, setCurrentView] = useState<CalendarViewType>('week')
@@ -1055,6 +1101,33 @@ export const App: React.FC = () => {
     toggleMiniCalendar
   ])
 
+  const shell: AppShellContext = {
+    currentView,
+    setCurrentView,
+    anchorDate,
+    setAnchorDate,
+    rangeLabel: visibleRange.label,
+    occurrences,
+    calendars,
+    firstDayOfWeek,
+    showMiniCalendar,
+    conflictCount: conflicts.length,
+    isOverlayOpen,
+    goPrev: handlePrev,
+    goNext: handleNext,
+    goToday: handleToday,
+    newEventOn: openEditorForDate,
+    openSearch: () => setIsSearchPaletteOpen(true),
+    openSettings: () => {
+      setSettingsSection(null)
+      setIsSettingsOpen(true)
+    },
+    openAccounts: () => setIsAccountModalOpen(true),
+    openConflicts: () => setIsConflictsModalOpen(true),
+    toggleCalendarVisibility,
+    refresh: loadCalendarsAndEvents
+  }
+
   return (
     <DisplayPreferencesProvider value={{
         timeFormat,
@@ -1093,6 +1166,10 @@ export const App: React.FC = () => {
       )}
 
       {(() => {
+          // An injected chrome renders as-is: auto-hide is a pointer
+          // affordance with no touch equivalent.
+          if (renderHeader) return <div className="shrink-0">{renderHeader(shell)}</div>
+
           const header = (
             <AppHeader
               title={currentView === 'week' ? '' : visibleRange.label}
@@ -1142,7 +1219,7 @@ export const App: React.FC = () => {
         })()}
 
       <div className="z-10 flex min-h-0 flex-1 overflow-hidden">
-        {showMiniCalendar && (
+        {renderSidebar ? renderSidebar(shell) : showMiniCalendar && (
           <AppSidebar
             collapsed={sidebarCollapsed}
             anchorDate={anchorDate}
@@ -1376,6 +1453,8 @@ export const App: React.FC = () => {
         appVersion={appVersion}
         platform={platform}
       />
+
+      {renderBottomBar?.(shell)}
 
       <NotionToaster />
     </div>

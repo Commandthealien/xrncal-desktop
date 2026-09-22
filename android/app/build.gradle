@@ -1,0 +1,115 @@
+apply plugin: 'com.android.application'
+apply plugin: 'org.jetbrains.kotlin.android'
+
+android {
+    namespace "app.xrncal.android"
+    compileSdk rootProject.ext.compileSdkVersion
+    defaultConfig {
+        applicationId "app.xrncal.android"
+        minSdkVersion rootProject.ext.minSdkVersion
+        targetSdkVersion rootProject.ext.targetSdkVersion
+        versionCode 1
+        // Kept in step with package.json by hand; the desktop build reads its
+        // version from there via app.getVersion().
+        versionName "0.1.0"
+
+        // Substituted into the Google OAuth intent filter in
+        // AndroidManifest.xml. The placeholder default is inert - it resolves
+        // to a scheme nothing will ever send - so a checkout with no Google
+        // client configured still builds and installs, it simply cannot
+        // complete a Google sign-in.
+        manifestPlaceholders = [
+            googleRedirectScheme: project.findProperty('googleRedirectScheme')
+                ?: 'com.googleusercontent.apps.xrncal-unconfigured'
+        ]
+        testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
+        aaptOptions {
+             // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
+             // Default: https://android.googlesource.com/platform/frameworks/base/+/282e181b58cf72b6ca770dc7ca5f91f135444502/tools/aapt/AaptAssets.cpp#61
+            // `!*.map` is xrncal's addition: Vite still emits source maps so
+             // they can be served during `cap run`, but shipping 3.4 MB of them
+             // inside the APK helps nobody and exposes the whole source tree.
+            ignoreAssetsPattern '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~:!*.map'
+        }
+    }
+    /**
+     * Release signing is opt-in and reads from gradle.properties (or the
+     * environment), so no keystore or password is ever committed. Set
+     * xrncalStoreFile / xrncalStorePassword / xrncalKeyAlias / xrncalKeyPassword
+     * in ~/.gradle/gradle.properties to produce an installable release build;
+     * without them the release variant is simply left unsigned, and
+     * assembleRelease still succeeds for CI.
+     */
+    signingConfigs {
+        release {
+            def storePath = project.findProperty('xrncalStoreFile') ?: System.getenv('XRNCAL_STORE_FILE')
+            if (storePath) {
+                storeFile file(storePath)
+                storePassword project.findProperty('xrncalStorePassword') ?: System.getenv('XRNCAL_STORE_PASSWORD')
+                keyAlias project.findProperty('xrncalKeyAlias') ?: System.getenv('XRNCAL_KEY_ALIAS')
+                keyPassword project.findProperty('xrncalKeyPassword') ?: System.getenv('XRNCAL_KEY_PASSWORD')
+            }
+        }
+    }
+
+    buildTypes {
+        release {
+            // R8 shrinks and obfuscates the Java/Kotlin side. The web bundle is
+            // already minified by Vite and is not touched by this.
+            minifyEnabled true
+            shrinkResources true
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+            if (project.findProperty('xrncalStoreFile') || System.getenv('XRNCAL_STORE_FILE')) {
+                signingConfig signingConfigs.release
+            }
+        }
+        debug {
+            // Keeps `cap run` and the CDP inspector fast to rebuild.
+            minifyEnabled false
+        }
+    }
+
+    // Matches Capacitor 7's own modules; the toolchain that supplies it is
+    // pinned in the root build.gradle.
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_21
+        targetCompatibility JavaVersion.VERSION_21
+    }
+
+    kotlinOptions {
+        jvmTarget = '21'
+    }
+}
+
+repositories {
+    flatDir{
+        dirs '../capacitor-cordova-android-plugins/src/main/libs', 'libs'
+    }
+}
+
+dependencies {
+    implementation fileTree(include: ['*.jar'], dir: 'libs')
+    implementation "androidx.appcompat:appcompat:$androidxAppCompatVersion"
+    implementation "androidx.coordinatorlayout:coordinatorlayout:$androidxCoordinatorLayoutVersion"
+    implementation "androidx.core:core-splashscreen:$coreSplashScreenVersion"
+    // ViewCompat / WindowInsetsCompat in MainActivity; used directly rather
+    // than relied on transitively.
+    implementation "androidx.core:core:$androidxCoreVersion"
+    implementation project(':capacitor-android')
+    implementation "com.github.requery:sqlite-android:$requerySqliteVersion"
+    testImplementation "junit:junit:$junitVersion"
+    androidTestImplementation "androidx.test.ext:junit:$androidxJunitVersion"
+    androidTestImplementation "androidx.test.espresso:espresso-core:$androidxEspressoCoreVersion"
+    implementation project(':capacitor-cordova-android-plugins')
+}
+
+apply from: 'capacitor.build.gradle'
+
+try {
+    def servicesJSON = file('google-services.json')
+    if (servicesJSON.text) {
+        apply plugin: 'com.google.gms.google-services'
+    }
+} catch(Exception e) {
+    logger.info("google-services.json not found, google-services plugin not applied. Push Notifications won't work")
+}

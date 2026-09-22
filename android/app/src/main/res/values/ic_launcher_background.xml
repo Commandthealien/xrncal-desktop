@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Sampled from resources/icon.png so the adaptive mask blends into the
+         artwork's own field instead of clipping it against white. -->
+    <color name="ic_launcher_background">#4F5BDB</color>
+</resources>

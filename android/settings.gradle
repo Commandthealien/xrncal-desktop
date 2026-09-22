@@ -1,0 +1,14 @@
+// Gradle resolves Java toolchains by exact language version. Capacitor 7's
+// plugin modules ask for JDK 21, and a machine with only 17 (or only 26)
+// installed fails configuration with "No locally installed toolchains match".
+// The foojay resolver lets Gradle fetch the matching JDK itself, so the build
+// works on a fresh checkout and in CI without a system-wide JDK install.
+plugins {
+    id 'org.gradle.toolchains.foojay-resolver-convention' version '0.8.0'
+}
+
+include ':app'
+include ':capacitor-cordova-android-plugins'
+project(':capacitor-cordova-android-plugins').projectDir = new File('./capacitor-cordova-android-plugins/')
+
+apply from: 'capacitor.settings.gradle'

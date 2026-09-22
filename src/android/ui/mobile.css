@@ -1,0 +1,237 @@
+/*
+ * Android skin.
+ *
+ * Loaded after the shared renderer stylesheet, so it only has to state the
+ * differences. Nothing here changes colour, radius or type - the Notion look
+ * and the hard rules in docs/design-guidelines.md (corner radius < 5px, soft
+ * pastel event colours) carry over untouched. What changes is reach, target
+ * size and how panels present themselves.
+ */
+
+/* --- Platform baseline ---------------------------------------------------- */
+
+html,
+body {
+  /* Stop the WebView bouncing the whole document; the calendar grids manage
+     their own scrolling and a rubber-band on the body detaches the sticky
+     header from the grid underneath it. */
+  overscroll-behavior: none;
+  /* Chrome's 300ms grey flash fires on every event block tap. */
+  -webkit-tap-highlight-color: transparent;
+}
+
+body {
+  /* Long-press is the drag affordance; without this Android also raises its
+     text-selection handles over the event title. */
+  -webkit-touch-callout: none;
+}
+
+/* The root container is h-screen, which on Android excludes neither the
+   status bar nor the gesture pill. */
+#root > div {
+  height: 100dvh;
+  /* Horizontal insets matter in landscape: a punch-hole camera that sits in
+     the status bar in portrait moves to a screen *edge* when rotated, and
+     anything drawn under it is occluded. box-sizing is border-box throughout,
+     so this does not change the height above. The root's own background still
+     paints edge to edge, so the reserved strip is app canvas rather than a
+     black bar. */
+  padding-left: var(--xrncal-inset-left, 0px);
+  padding-right: var(--xrncal-inset-right, 0px);
+}
+
+/* --- Safe areas -----------------------------------------------------------
+ *
+ * `--xrncal-inset-*` is published by MainActivity via
+ * src/android/platform/window-insets.ts, because a WebView's
+ * env(safe-area-inset-*) only ever describes a display cutout - it reads 0 for
+ * the status bar and the gesture pill. env() stays as the fallback for the
+ * moment before the host's first report lands.
+ */
+
+.gc-mobile-header {
+  min-height: calc(48px + var(--xrncal-inset-top, env(safe-area-inset-top, 0px)));
+  padding-top: var(--xrncal-inset-top, env(safe-area-inset-top, 0px));
+}
+
+.gc-bottom-nav {
+  padding-bottom: var(--xrncal-inset-bottom, env(safe-area-inset-bottom, 0px));
+}
+
+.gc-drawer {
+  padding-top: var(--xrncal-inset-top, env(safe-area-inset-top, 0px));
+  padding-bottom: var(--xrncal-inset-bottom, env(safe-area-inset-bottom, 0px));
+  /* The drawer is portalled to <body>, so it does not inherit the root's
+     horizontal padding and has to clear the cutout itself. */
+  padding-left: var(--xrncal-inset-left, 0px);
+}
+
+/* Dialogs and sheets sit above the gesture bar too. */
+@media (max-width: 767px) {
+  .gc-dialog,
+  .gc-slide-right,
+  [class*='max-w-[420px]'] {
+    padding-bottom: var(--xrncal-inset-bottom, env(safe-area-inset-bottom, 0px));
+  }
+}
+
+/* --- Phone layout --------------------------------------------------------- */
+
+@media (max-width: 767px) {
+  /* Week view: seven columns will not fit legibly on a phone. Each column
+     gets a floor of ~30vw so three sit on screen at once and the rest are a
+     swipe away. Both grids carry .gc-week-grid, and use-week-scroll-sync.ts
+     keeps their scroll offsets together. */
+  .gc-week-grid {
+    grid-template-columns: 44px repeat(7, minmax(30vw, 1fr)) !important;
+  }
+
+  .gc-week-header,
+  .gc-week-scroll {
+    overflow-x: auto !important;
+    scrollbar-width: none;
+    /* Snap so a flick lands on a day boundary rather than mid-column. */
+    scroll-snap-type: x proximity;
+  }
+
+  .gc-week-header::-webkit-scrollbar,
+  .gc-week-scroll::-webkit-scrollbar {
+    display: none;
+  }
+
+  /* Dialogs become sheets. A centred 512px card on a 390px screen is just a
+     cramped card; full-bleed is what the platform does. */
+  .gc-dialog {
+    max-width: 100% !important;
+    width: 100% !important;
+    /* Shrink by the keyboard's height rather than sliding under it, so the
+       sheet's own footer - and its Save button - stays reachable. */
+    max-height: calc(92dvh - var(--xrncal-keyboard, 0px));
+    margin-top: auto;
+    border-radius: 4px 4px 0 0;
+    overflow-y: auto;
+  }
+
+  .gc-overlay {
+    align-items: flex-end !important;
+    padding: 0 !important;
+    /* Lifts the bottom-anchored sheet clear of the keyboard. The calendar
+       behind it is not resized, so nothing reflows. */
+    padding-bottom: var(--xrncal-keyboard, 0px) !important;
+  }
+
+  /* Same treatment for the side panels, which become full-screen sheets. */
+  .gc-slide-right,
+  [class*='max-w-[420px]'] {
+    max-height: calc(100dvh - var(--xrncal-keyboard, 0px));
+  }
+
+  /* The editor's side-panel mode and the settings panel are both fixed-width
+     drawers on desktop; on a phone they take the whole screen. */
+  .gc-slide-right,
+  [class*='max-w-[420px]'],
+  [class*='max-w-[400px]'] {
+    max-width: 100% !important;
+  }
+
+  .gc-slide-right,
+  [class*='max-w-[420px]'] {
+    padding-top: var(--xrncal-inset-top, env(safe-area-inset-top, 0px));
+  }
+
+  /* Month cells need room for a thumb and for two event pills. */
+  .gc-month-cell {
+    min-height: 88px;
+  }
+
+  /* Android's minimum touch target is 48dp. Inputs and buttons inside forms
+     are sized for a mouse on desktop. */
+  input:not([type='checkbox']):not([type='radio']),
+  select,
+  button[type='submit'] {
+    min-height: 44px;
+  }
+
+  /* iOS/Android zoom the viewport when a focused input is under 16px. The
+     form kit uses 13px throughout. */
+  input,
+  textarea,
+  select {
+    font-size: 16px !important;
+  }
+
+  /* Hover styling sticks after a tap on touch devices - the element keeps the
+     hover state until something else is tapped. */
+  @media (hover: none) {
+    .hover\:bg-hover:hover {
+      background-color: transparent;
+    }
+  }
+}
+
+/* --- Touch drag ------------------------------------------------------------
+ *
+ * Driven by src/android/ui/touch-drag.ts. A desktop drag starts on mousedown;
+ * on touch that is indistinguishable from a scroll, so the drag arms on a
+ * long press and these styles are the feedback that it did.
+ */
+
+/* The block the finger is carrying. Cloned from the original and positioned
+   by transform, so it never participates in layout or hit-testing. */
+.gc-touch-drag-ghost {
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 60;
+  pointer-events: none;
+  opacity: 0.92;
+  transform-origin: center;
+  box-shadow: 0 10px 24px rgb(0 0 0 / 45%);
+  /* Slightly larger than life so it reads as lifted off the grid. */
+  scale: 1.04;
+  will-change: transform;
+}
+
+/* The original stays in place, dimmed, so the source slot is still legible
+   while the copy moves - same idea as the desktop drag image. */
+.gc-touch-drag-source {
+  opacity: 0.35;
+}
+
+/* --- Touch targets ---------------------------------------------------------
+ *
+ * Android's minimum target is 48dp. The resize handles are a few pixels tall
+ * because a mouse cursor is a single point; a fingertip is not. The hit area
+ * is grown with a transparent ::after rather than by resizing the handle, so
+ * the visible affordance keeps its designed size.
+ */
+
+@media (hover: none) {
+  [class*='cursor-ns-resize'],
+  [class*='cursor-n-resize'],
+  [class*='cursor-s-resize'] {
+    /* Without this the browser claims the gesture for scrolling and cancels
+       the pointer stream the resize hook depends on. */
+    touch-action: none;
+    position: relative;
+  }
+
+  [class*='cursor-ns-resize']::after,
+  [class*='cursor-n-resize']::after,
+  [class*='cursor-s-resize']::after {
+    content: '';
+    position: absolute;
+    left: 0;
+    right: 0;
+    /* ~22px tall, centred on the handle: comfortably thumb-sized without
+       swallowing the middle of a short event block. */
+    top: -9px;
+    bottom: -9px;
+  }
+
+  /* An event block is the drag handle, so the browser must not treat a
+     press-and-move on it as a scroll before the long-press completes. */
+  [draggable='true'] {
+    touch-action: pan-x pan-y;
+  }
+}

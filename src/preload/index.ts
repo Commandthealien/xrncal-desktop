@@ -99,6 +99,10 @@ if (process.contextIsolated) {
     console.error('Failed to expose xrncal API in context bridge:', error)
   }
 } else {
-  // @ts-expect-error - fallback for non-context-isolated test renderers
-  window.xrncal = xrncalApi
+  // Fallback for non-context-isolated test renderers, and for Android, where
+  // there is no isolated world to bridge into. An explicit cast rather than a
+  // ts-directive: whether this assignment errors depends on which project's
+  // globals are in scope (node, web or android), so @ts-expect-error is
+  // reported as unused under some of them and fails the build.
+  ;(window as unknown as { xrncal: XrncalAPI }).xrncal = xrncalApi
 }

@@ -1,0 +1,77 @@
+{
+  "compilerOptions": {
+    "composite": true,
+    "target": "ESNext",
+    "useDefineForClassFields": true,
+    "module": "ESNext",
+    "lib": [
+      "ESNext",
+      "DOM",
+      "DOM.Iterable"
+    ],
+    "moduleResolution": "bundler",
+    "allowImportingTsExtensions": true,
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "moduleDetection": "force",
+    "noEmit": true,
+    "jsx": "react-jsx",
+    "strict": true,
+    "noImplicitAny": true,
+    "strictNullChecks": true,
+    "strictFunctionTypes": true,
+    "strictBindCallApply": true,
+    "strictPropertyInitialization": true,
+    "noImplicitThis": true,
+    "alwaysStrict": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "noImplicitReturns": true,
+    "noFallthroughCasesInSwitch": true,
+    "skipLibCheck": true,
+    "baseUrl": ".",
+    "paths": {
+      "@renderer/*": [
+        "src/renderer/src/*"
+      ],
+      "@shared/*": [
+        "src/shared/*"
+      ],
+      "@main/*": [
+        "src/main/*"
+      ],
+      "@android/*": [
+        "src/android/*"
+      ],
+      "electron": [
+        "src/android/shims/electron.ts"
+      ],
+      "node:fs": [
+        "src/android/shims/node-fs.ts"
+      ],
+      "node:fs/promises": [
+        "src/android/shims/node-fs-promises.ts"
+      ],
+      "node:path": [
+        "src/android/shims/node-path.ts"
+      ]
+    }
+  },
+  "include": [
+    "src/android/**/*",
+    "src/renderer/src/**/*",
+    "src/renderer/src/env.d.ts",
+    "src/shared/**/*",
+    "src/main/**/*",
+    "src/preload/**/*",
+    "tests/android-sqlite-bridge.test.ts"
+  ],
+  "exclude": [
+    "src/main/index.ts",
+    "src/main/tray.ts",
+    "src/main/mini-window.ts",
+    "src/main/adopt-legacy-userdata.ts",
+    "src/renderer/src/main.tsx",
+    "src/renderer/src/mini/**/*"
+  ]
+}

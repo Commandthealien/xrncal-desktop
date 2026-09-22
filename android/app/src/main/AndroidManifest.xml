@@ -1,0 +1,100 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <application
+        android:allowBackup="false"
+        android:icon="@mipmap/ic_launcher"
+        android:label="@string/app_name"
+        android:roundIcon="@mipmap/ic_launcher_round"
+        android:supportsRtl="true"
+        android:theme="@style/AppTheme">
+
+        <activity
+            android:configChanges="orientation|keyboardHidden|keyboard|screenSize|locale|smallestScreenSize|screenLayout|uiMode|navigation"
+            android:name=".MainActivity"
+            android:label="@string/title_activity_main"
+            android:theme="@style/AppTheme.NoActionBarLaunch"
+            android:launchMode="singleTask"
+            android:exported="true">
+
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+
+            <!--
+              OAuth redirect targets.
+
+              Desktop xrncal catches the authorization code on a loopback HTTP
+              server. Android has no usable equivalent, and both providers
+              reject loopback redirects from a mobile client, so the code comes
+              back through a custom scheme that resolves to this activity.
+              launchMode="singleTask" above means the running instance is
+              reused and the URL arrives as appUrlOpen rather than starting a
+              second copy of the app.
+            -->
+
+            <!-- Microsoft Entra. Must match MICROSOFT_REDIRECT_URI in
+                 src/android/oauth/microsoft-oauth.ts and the redirect URI
+                 registered on the app registration. -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="app.xrncal.android" android:host="oauth2callback" />
+            </intent-filter>
+
+            <!-- Google. The scheme is the reversed client id and therefore
+                 differs per install; `npm run android:configure-oauth` writes
+                 it into gradle.properties as googleRedirectScheme, and the
+                 manifest placeholder below picks it up. See
+                 googleRedirectUri() in src/android/oauth/google-oauth.ts. -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="${googleRedirectScheme}" />
+            </intent-filter>
+
+        </activity>
+
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.fileprovider"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/file_paths"></meta-data>
+        </provider>
+    </application>
+
+    <!-- Permissions -->
+
+    <uses-permission android:name="android.permission.INTERNET" />
+    <!-- A short tick when a long-press arms a drag; without it there is no
+         confirmation the gesture registered. -->
+    <uses-permission android:name="android.permission.VIBRATE" />
+    <!-- Provider sync should not run on a metered connection check, but the
+         sync worker does need to know the network exists. -->
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <!-- Runtime-requested on Android 13+; the reminder scheduler asks for it
+         the first time it queues anything. -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!-- Event reminders must fire at the minute they are due, not whenever the
+         OS next batches alarms, so they are scheduled as exact alarms. -->
+    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
+    <uses-permission android:name="android.permission.USE_EXACT_ALARM" />
+    <!-- Re-arm pending reminders after a reboot. -->
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+
+    <!-- Needed on Android 11+ so Chrome Custom Tabs (the OAuth flow) can
+         resolve a browser. -->
+    <queries>
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <category android:name="android.intent.category.BROWSABLE" />
+            <data android:scheme="https" />
+        </intent>
+    </queries>
+</manifest>
