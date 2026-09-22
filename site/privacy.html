@@ -1,0 +1,139 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Privacy Policy — xrncal</title>
+    <meta
+      name="description"
+      content="How xrncal handles your calendar data: it stays on your device, and the app talks only to the providers you connect."
+    />
+    <link rel="icon" href="mark.svg" />
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <main>
+      <header>
+        <img src="mark.svg" alt="" />
+        <span class="name">xrncal</span>
+      </header>
+
+      <h1>Privacy Policy</h1>
+      <p class="meta">Last updated: 22 September 2026</p>
+
+      <p class="lede">
+        xrncal is a calendar application for Windows, Linux and Android. It runs entirely on your
+        device. The developer operates no servers, receives no data from the app, and has no way to
+        see your calendars or your account.
+      </p>
+
+      <h2>What the app handles</h2>
+      <ul>
+        <li>
+          <strong>Calendar data</strong> — the calendars, events, attendees and reminders belonging
+          to the accounts you connect, so that the app can display and edit them.
+        </li>
+        <li>
+          <strong>Basic account identity</strong> — the email address and display name of each
+          connected account, used to label that account in the interface.
+        </li>
+        <li>
+          <strong>Credentials</strong> — the OAuth tokens (or, for CalDAV, the username and
+          password) needed to reach your provider.
+        </li>
+      </ul>
+
+      <h2>Where it is kept</h2>
+      <p>
+        All of it is stored locally, in a SQLite database inside the application's own profile
+        directory on your computer, or in app-private storage on Android. Nothing is uploaded
+        anywhere by the app.
+      </p>
+      <p>
+        Credentials are encrypted at rest before being written: on desktop with Electron's
+        <code>safeStorage</code>, backed by the operating system keychain, and on Android with an
+        AES-GCM key held in the Android Keystore. If a Linux system has no keyring available, the
+        app refuses to store the credential rather than fall back to plain text.
+      </p>
+
+      <h2>What leaves your device</h2>
+      <p>The app makes network requests to exactly three kinds of destination, all of them yours:</p>
+      <ul>
+        <li>Google's OAuth and Calendar API endpoints, if you connect a Google account.</li>
+        <li>Microsoft's identity and Microsoft Graph endpoints, if you connect a Microsoft account.</li>
+        <li>The CalDAV server whose address you enter, if you connect a CalDAV account.</li>
+      </ul>
+      <p>
+        There are no other outbound requests. The app contains no analytics, no telemetry, no crash
+        reporting, no advertising and no third-party trackers. Holiday calendars are generated on
+        your device rather than fetched from anywhere.
+      </p>
+
+      <h2>Google user data</h2>
+      <p>
+        xrncal's use and transfer of information received from Google APIs adheres to the
+        <a href="https://developers.google.com/terms/api-services-user-data-policy"
+          >Google API Services User Data Policy</a
+        >, including the Limited Use requirements.
+      </p>
+      <p>The app requests these scopes, and only these:</p>
+      <ul>
+        <li>
+          <code>https://www.googleapis.com/auth/calendar</code> — to read your calendars and events
+          and to save the changes you make. This is what the application does; a calendar that could
+          not write would not be usable.
+        </li>
+        <li>
+          <code>openid</code>, <code>email</code>, <code>profile</code> — to show which account is
+          connected, so that you can tell two connected accounts apart.
+        </li>
+      </ul>
+      <p>
+        Google data is used solely to provide the calendar features you see in the app. It is never
+        transferred to anyone, never used for advertising, never sold, and never used to train any
+        model. No human, including the developer, has access to it.
+      </p>
+
+      <h2>Removing your data</h2>
+      <ul>
+        <li>
+          Disconnecting an account in the app deletes that account's stored credentials from your
+          device, along with the local copy of its calendars.
+        </li>
+        <li>
+          To withdraw the app's access at Google independently of the app, visit
+          <a href="https://myaccount.google.com/permissions">myaccount.google.com/permissions</a>
+          and remove xrncal. Disconnecting inside the app removes the credential locally but does not
+          by itself revoke the grant on Google's side.
+        </li>
+        <li>
+          Uninstalling the app and deleting its profile directory removes everything the app has
+          stored. Because the developer holds no copy, there is nothing left to request the deletion
+          of.
+        </li>
+      </ul>
+
+      <h2>Children</h2>
+      <p>
+        The app is not directed at children under 13 and collects no information from anyone,
+        including children.
+      </p>
+
+      <h2>Changes</h2>
+      <p>
+        If this policy changes, the revised version will be posted on this page with a new date
+        above.
+      </p>
+
+      <h2>Contact</h2>
+      <p>
+        Questions about this policy:
+        <a href="mailto:alotin1000@gmail.com">alotin1000@gmail.com</a>
+      </p>
+
+      <footer>
+        <p><a href="index.html">← xrncal</a></p>
+      </footer>
+    </main>
+  </body>
+</html>

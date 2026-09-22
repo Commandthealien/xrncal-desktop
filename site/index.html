@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>xrncal</title>
+    <meta
+      name="description"
+      content="xrncal is a local-first calendar for Windows, Linux and Android that syncs with Google Calendar, Microsoft 365 and CalDAV."
+    />
+    <link rel="icon" href="mark.svg" />
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <main>
+      <header>
+        <img src="mark.svg" alt="" />
+        <span class="name">xrncal</span>
+      </header>
+
+      <h1>A calendar that keeps your data on your own machine.</h1>
+      <p class="lede">
+        xrncal is a calendar app for Windows, Linux and Android. It stores everything in a local
+        SQLite database on your device and syncs that database with the accounts you connect —
+        Google Calendar, Microsoft 365 or any CalDAV server.
+      </p>
+
+      <h2>How it works</h2>
+      <ul>
+        <li>
+          <strong>Local first.</strong> The database on your device is the source of truth. The app
+          reads and writes it directly and works offline; syncing pushes your changes out and pulls
+          other devices' changes in.
+        </li>
+        <li>
+          <strong>No servers in the middle.</strong> The app talks to your calendar providers
+          directly. There is no xrncal account, no xrncal backend, and no copy of your calendar
+          anywhere but your device and your provider.
+        </li>
+        <li>
+          <strong>Credentials stay encrypted.</strong> Access tokens are encrypted at rest with the
+          operating system's own keystore, never written in plain text.
+        </li>
+      </ul>
+
+      <h2>Get it</h2>
+      <p>
+        Source, releases and installation instructions are on GitHub:
+        <a href="https://github.com/Xernnn/xrncal-desktop">github.com/Xernnn/xrncal-desktop</a>.
+      </p>
+
+      <div class="card">
+        <p style="margin: 0">
+          <strong>Privacy:</strong> xrncal collects nothing. There is no analytics, no telemetry and
+          no crash reporting of any kind. The full policy is at
+          <a href="privacy.html">privacy.html</a>.
+        </p>
+      </div>
+
+      <footer>
+        <p>
+          xrncal is open source under the MIT licence. Questions:
+          <a href="mailto:alotin1000@gmail.com">alotin1000@gmail.com</a>
+        </p>
+      </footer>
+    </main>
+  </body>
+</html>

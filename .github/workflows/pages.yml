@@ -1,0 +1,39 @@
+# Publishes site/ to GitHub Pages - the homepage and privacy policy URLs that
+# Google's OAuth consent screen requires. Pages can only serve a repository's
+# root or its docs/ folder on its own, and docs/ here holds the project's
+# internal specs, so the folder is uploaded explicitly instead.
+#
+# Enable once at Settings -> Pages -> Source: GitHub Actions.
+name: Pages
+
+on:
+  push:
+    branches: [main]
+    paths: ['site/**', '.github/workflows/pages.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# A queued run waits for the one in flight rather than cancelling it, so a
+# deploy is never interrupted half-published.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+      - id: deployment
+        uses: actions/deploy-pages@v4
