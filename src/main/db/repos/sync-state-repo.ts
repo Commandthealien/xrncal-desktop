@@ -22,6 +22,36 @@ export interface CalendarSyncState {
 export class SyncStateRepo {
   constructor(private db: ISqliteDatabase) {}
 
+  /**
+   * Local changes the next poll will try to send: dirty events and occurrence
+   * exceptions in a calendar of an active provider account, minus anything
+   * parked as a conflict (engines skip those until resolveConflict()).
+   *
+   * Local calendars set `dirty` on every edit too - they go through the same
+   * repo writes - but no engine ever pushes them. Counting every dirty row
+   * made a local-only user's status read "37 offline changes pending push",
+   * a number that could never drain.
+   */
+  countPendingPushes(): number {
+    const row = this.db
+      .prepare(
+        `SELECT
+           (SELECT COUNT(*) FROM events e
+              JOIN calendars c ON c.id = e.calendar_id
+              JOIN accounts a ON a.id = c.account_id
+             WHERE e.dirty = 1 AND e.has_conflict = 0
+               AND a.type != 'local' AND a.is_active = 1)
+         + (SELECT COUNT(*) FROM event_exceptions x
+              JOIN events e ON e.id = x.master_event_id
+              JOIN calendars c ON c.id = e.calendar_id
+              JOIN accounts a ON a.id = c.account_id
+             WHERE x.dirty = 1 AND e.has_conflict = 0
+               AND a.type != 'local' AND a.is_active = 1) AS cnt`
+      )
+      .get<{ cnt: number }>()
+    return row?.cnt ?? 0
+  }
+
   getSyncToken(calendarId: string): string | null {
     const row = this.db
       .prepare('SELECT sync_token FROM sync_state WHERE calendar_id = ?')

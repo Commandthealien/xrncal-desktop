@@ -1,4 +1,5 @@
 import type { ISqliteDatabase } from '../db/sqlite-driver'
+import { SyncStateRepo } from '../db/repos/sync-state-repo'
 import { GoogleSyncEngine } from './google-sync-engine'
 import { MicrosoftSyncEngine } from './microsoft-sync-engine'
 import { CalDavSyncEngine } from './caldav-sync-engine'
@@ -150,9 +151,6 @@ export class SyncWorker {
    * Query current sync status
    */
   getStatus(): SyncStatus {
-    const dirtyCountRow = this.db
-      .prepare('SELECT COUNT(*) as cnt FROM events WHERE dirty = 1')
-      .get<{ cnt: number }>()
 
     const accounts = this.db
       .prepare('SELECT * FROM accounts WHERE is_active = 1')
@@ -171,7 +169,7 @@ export class SyncWorker {
       lastSyncTime: this.lastSyncTime,
       isSyncing: this.isSyncing,
       lastError: this.lastError,
-      pendingPushesCount: dirtyCountRow?.cnt || 0,
+      pendingPushesCount: new SyncStateRepo(this.db).countPendingPushes(),
       connectedAccounts: accounts
     }
   }
