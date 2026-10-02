@@ -1,5 +1,6 @@
 import { DateTime } from 'luxon'
 import type { ExpandedOccurrence } from './event-model'
+import { clockMinutesOfDay } from './clock-minutes'
 
 export interface TimedSegment {
   occ: ExpandedOccurrence
@@ -57,10 +58,15 @@ export function segmentTimedOccurrence(occ: ExpandedOccurrence): TimedSegment[] 
   return segments
 }
 
+/**
+ * Where a segment sits on its day's hour grid, by clock face. Elapsed minutes
+ * put every event an hour early on the day the clocks spring forward, and an
+ * hour late on the day they fall back.
+ */
 export function segmentDayMinutes(segment: TimedSegment): { startMin: number; endMin: number } {
-  const dayStart = DateTime.fromFormat(segment.dateKey, 'yyyy-MM-dd').startOf('day')
-  const startMin = Math.max(0, Math.round(segment.startLocal.diff(dayStart, 'minutes').minutes))
-  const endMin = Math.max(startMin + 1, Math.round(segment.endLocal.diff(dayStart, 'minutes').minutes))
+  const day = DateTime.fromFormat(segment.dateKey, 'yyyy-MM-dd')
+  const startMin = clockMinutesOfDay(segment.startLocal, day)
+  const endMin = Math.max(startMin + 1, clockMinutesOfDay(segment.endLocal, day))
   return { startMin, endMin }
 }
 

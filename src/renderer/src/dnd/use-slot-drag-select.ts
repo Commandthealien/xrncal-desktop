@@ -3,6 +3,7 @@ import { DateTime } from 'luxon'
 import { minutesFromPointer } from './drop-target'
 import { formatClockTimeStr, type TimeFormatPref } from '@shared/time-format'
 import { useDisplayPreferences } from '../context/DisplayPreferencesContext'
+import { atClockMinutes } from '@shared/clock-minutes'
 
 export interface SlotDragPreview {
   dayKey: string
@@ -97,11 +98,13 @@ export function useSlotDragSelect(options: {
 
     const lo = Math.min(drag.anchorMinutes, drag.currentMinutes)
     const hi = Math.max(drag.anchorMinutes, drag.currentMinutes)
-    const start = drag.day.startOf('day').plus({ minutes: lo })
+    // By clock face: on a day the clocks change, startOf('day').plus({ minutes })
+    // turns a drag across the 17:00 row into an event at 16:00 or 18:00.
+    const start = atClockMinutes(drag.day, lo)
     const end =
       hi - lo < CLICK_THRESHOLD_MINUTES
         ? start.plus({ hours: 1 })
-        : drag.day.startOf('day').plus({ minutes: hi })
+        : atClockMinutes(drag.day, hi)
     onComplete(start, end, { clientX: drag.clientX })
   }, [handleMouseMove, onComplete])
 

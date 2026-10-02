@@ -1,5 +1,6 @@
 import { DateTime } from 'luxon'
 import { formatClockTime, type TimeFormatPref } from '@shared/time-format'
+import { atClockMinutes } from '@shared/clock-minutes'
 
 /**
  * Only vertical. East/west used to stretch an event across whole days, which
@@ -57,16 +58,7 @@ export function applyResizeEdge(args: {
   )
   // By clock face, not elapsed minutes: adding minutes across a spring-forward
   // hour lands an hour late.
-  const baseDay = (edge === 'n' ? args.originStart : args.originEnd).startOf('day')
-  const next =
-    snapped >= 24 * 60
-      ? baseDay.plus({ days: 1 }).startOf('day')
-      : baseDay.set({
-          hour: Math.floor(snapped / 60),
-          minute: snapped % 60,
-          second: 0,
-          millisecond: 0
-        })
+  const next = atClockMinutes(edge === 'n' ? args.originStart : args.originEnd, snapped)
   if (edge === 'n') start = next
   else end = next
 
