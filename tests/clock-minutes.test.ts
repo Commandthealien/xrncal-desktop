@@ -8,14 +8,23 @@ import type { ExpandedOccurrence } from '../src/shared/event-model'
  * The hour grid is a clock face. In Sydney the clocks spring forward on
  * 4 Oct 2026 (a 23-hour day) and fall back on 4 Apr 2027 (25 hours); on both,
  * measuring elapsed minutes from midnight put a 17:00 event on the wrong row.
+ *
+ * Both zones are pinned: Luxon's default one for the times built here, and the
+ * process's own for segmentTimedOccurrence, whose setZone('local') is the
+ * system zone and ignores Settings.defaultZone. Pinning only the first passed
+ * on a machine already in Sydney and failed in CI's UTC.
  */
 function inSydney<T>(fn: () => T): T {
-  const previous = Settings.defaultZone
+  const previousZone = Settings.defaultZone
+  const previousTz = process.env.TZ
   Settings.defaultZone = 'Australia/Sydney'
+  process.env.TZ = 'Australia/Sydney'
   try {
     return fn()
   } finally {
-    Settings.defaultZone = previous
+    Settings.defaultZone = previousZone
+    if (previousTz === undefined) delete process.env.TZ
+    else process.env.TZ = previousTz
   }
 }
 
