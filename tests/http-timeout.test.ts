@@ -59,6 +59,44 @@ describe('fetchWithTimeout', () => {
       (err: Error) => err.name === 'AbortError' && !(err instanceof RequestTimeoutError)
     )
   })
+
+  // The deadline cannot depend on fetch noticing the abort: a transport that
+  // ignores the signal must still be cut off.
+  it('still times out when fetch ignores its abort signal', async () => {
+    vi.stubGlobal('fetch', vi.fn(() => new Promise(() => {})))
+
+    await expect(fetchWithTimeout('https://example.test/deaf', { method: 'PUT' }, 20)).rejects.toBeInstanceOf(
+      RequestTimeoutError
+    )
+  })
+
+  it('still honours a caller abort when fetch ignores its abort signal', async () => {
+    vi.stubGlobal('fetch', vi.fn(() => new Promise(() => {})))
+
+    const controller = new AbortController()
+    const pending = fetchWithTimeout('https://example.test/deaf', { signal: controller.signal }, 5000)
+    controller.abort()
+
+    await expect(pending).rejects.toSatisfy(
+      (err: Error) => err.name === 'AbortError' && !(err instanceof RequestTimeoutError)
+    )
+  })
+
+  it('aborts the underlying request when the deadline passes', async () => {
+    let seen: AbortSignal | undefined
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((_url: string, init: RequestInit) => {
+        seen = init.signal ?? undefined
+        return new Promise(() => {})
+      })
+    )
+
+    await expect(fetchWithTimeout('https://example.test/deaf', {}, 20)).rejects.toBeInstanceOf(
+      RequestTimeoutError
+    )
+    expect(seen?.aborted).toBe(true)
+  })
 })
 
 describe('describeHttpFailure', () => {

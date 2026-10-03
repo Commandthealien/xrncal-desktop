@@ -22,6 +22,10 @@ export class RequestTimeoutError extends Error {
 /**
  * `fetch` with a hard deadline. Any caller-supplied `signal` still works - the
  * two are combined, so an external abort and the timeout both cancel.
+ *
+ * The deadline does not rely on `fetch` honouring the abort. It races the
+ * request and rejects on its own, so a transport that ignores the signal still
+ * cannot hold SyncWorker.isSyncing past the deadline.
  */
 export async function fetchWithTimeout(
   url: string,
@@ -29,17 +33,28 @@ export async function fetchWithTimeout(
   timeoutMs = DEFAULT_REQUEST_TIMEOUT_MS
 ): Promise<Response> {
   const controller = new AbortController()
-  const timer = setTimeout(() => controller.abort(), timeoutMs)
-
   const external = init.signal
-  const onExternalAbort = (): void => controller.abort()
+  let timer: ReturnType<typeof setTimeout> | undefined
+  let onExternalAbort = (): void => {}
+
+  const cancelled = new Promise<never>((_resolve, reject) => {
+    timer = setTimeout(() => {
+      reject(new RequestTimeoutError(url, timeoutMs))
+      controller.abort()
+    }, timeoutMs)
+    onExternalAbort = () => {
+      reject(abortErrorFrom(external))
+      controller.abort()
+    }
+  })
+
   if (external) {
-    if (external.aborted) controller.abort()
+    if (external.aborted) onExternalAbort()
     else external.addEventListener('abort', onExternalAbort, { once: true })
   }
 
   try {
-    return await fetch(url, { ...init, signal: controller.signal })
+    return await Promise.race([fetch(url, { ...init, signal: controller.signal }), cancelled])
   } catch (err: any) {
     // An abort raised by our own timer is reported as a timeout; an abort that
     // came from the caller's signal is left as-is.
@@ -51,6 +66,14 @@ export async function fetchWithTimeout(
     clearTimeout(timer)
     if (external) external.removeEventListener('abort', onExternalAbort)
   }
+}
+
+/** What `fetch` itself rejects with when its signal fires: the signal's reason. */
+function abortErrorFrom(signal: AbortSignal | null | undefined): unknown {
+  if (signal?.reason !== undefined) return signal.reason
+  const err = new Error('The operation was aborted.')
+  err.name = 'AbortError'
+  return err
 }
 
 /**
