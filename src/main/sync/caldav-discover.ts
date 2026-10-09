@@ -53,6 +53,20 @@ export function normalizeCalDavUrl(
 }
 
 /**
+ * What to call a CalDAV account the user did not name: the server it lives on
+ * (`homeserver.example.ts.net`, `cloud.example.com`), which is what tells two
+ * accounts apart in the list - the old `GENERIC (sonn)` said neither.
+ */
+export function defaultCalDavName(provider: CalDavProvider, normalizedUrl: string): string {
+  if (provider === 'icloud') return 'iCloud'
+  try {
+    return new URL(normalizedUrl).hostname
+  } catch {
+    return 'CalDAV'
+  }
+}
+
+/**
  * Simple XML tag value extractor from XML multistatus response
  */
 export function extractXmlTagValue(xml: string, tagName: string): string | undefined {
@@ -60,6 +74,24 @@ export function extractXmlTagValue(xml: string, tagName: string): string | undef
   const regex = new RegExp(`<(?:[a-zA-Z0-9_-]+:)?${tagName}(?:\\s+[^>]*)?>([\\s\\S]*?)<\\/(?:[a-zA-Z0-9_-]+:)?${tagName}>`, 'i')
   const match = xml.match(regex)
   return match ? match[1].trim() : undefined
+}
+
+/**
+ * The href a DAV property points at, e.g. the `/sonn/` in
+ * `<current-user-principal><href>/sonn/</href></current-user-principal>`.
+ */
+export function extractPropHref(xml: string, propName: string): string | undefined {
+  const inner = extractXmlTagValue(xml, propName)
+  return inner ? extractXmlTagValue(inner, 'href') : undefined
+}
+
+/** An href from a multistatus, made absolute against the URL that answered. */
+export function resolveDavHref(href: string, baseUrl: string): string {
+  try {
+    return new URL(href, baseUrl).toString()
+  } catch {
+    return href
+  }
 }
 
 /**

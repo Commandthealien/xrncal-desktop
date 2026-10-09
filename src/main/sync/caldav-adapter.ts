@@ -3,6 +3,8 @@ import { generateIcs } from '../ics/write-ics'
 import {
   parseCalDavMultistatus,
   extractXmlTagValue,
+  extractPropHref,
+  resolveDavHref,
   type CalDavCalendarDescriptor
 } from './caldav-discover'
 import type { Calendar, CalendarEvent, EventException } from '@shared/event-model'
@@ -68,6 +70,75 @@ export class CalDavAdapter {
 
     const xml = await res.text()
     return parseCalDavMultistatus(xml, this.creds.url)
+  }
+
+  /**
+   * Find the user's calendars from whatever address they typed - a server root,
+   * a principal or the calendar home itself - the way RFC 6764 clients "auto
+   * detect": calendars at the address, else follow `current-user-principal`
+   * (asking `/.well-known/caldav` when the address does not say) to its
+   * `calendar-home-set`. Without this, a bare server URL connected "fine" and
+   * then showed no calendars, because they live one or two levels down.
+   *
+   * Returns the URL to store as the account's base, so every later sync lists
+   * calendars with the single PROPFIND in `discoverCalendars`.
+   */
+  async locateCalendarHome(): Promise<{ url: string; calendars: CalDavCalendarDescriptor[] }> {
+    const start = this.creds.url
+    const here = await this.calendarsAt(start)
+    if (here.length > 0) return { url: start, calendars: here }
+
+    const principal =
+      (await this.propHref(start, 'current-user-principal')) ??
+      (await this.propHref(resolveDavHref('/.well-known/caldav', start), 'current-user-principal'))
+    if (!principal) return { url: start, calendars: [] }
+
+    const home = await this.propHref(principal, 'calendar-home-set')
+    if (!home) return { url: start, calendars: [] }
+
+    return { url: home, calendars: await this.calendarsAt(home) }
+  }
+
+  /** Calendars directly under `url`; none (rather than an error) when the server
+   *  will not list it, so discovery can move on. A 401 still throws. */
+  private async calendarsAt(url: string): Promise<CalDavCalendarDescriptor[]> {
+    const res = await this.propfind(url, '1', `<D:resourcetype/>
+    <D:displayname/>
+    <C:calendar-color/>
+    <CS:getctag/>
+    <D:sync-token/>
+    <D:current-user-privilege-set/>`)
+    if (!res) return []
+    return parseCalDavMultistatus(await res.text(), res.url || url)
+  }
+
+  /** The absolute href a single property on `url` points at, if the server has it. */
+  private async propHref(url: string, prop: 'current-user-principal' | 'calendar-home-set'): Promise<string | undefined> {
+    const res = await this.propfind(url, '0', prop === 'calendar-home-set' ? '<C:calendar-home-set/>' : '<D:current-user-principal/>')
+    if (!res) return undefined
+    const href = extractPropHref(await res.text(), prop)
+    return href ? resolveDavHref(href, res.url || url) : undefined
+  }
+
+  /** PROPFIND, or null for the statuses that just mean "not here". */
+  private async propfind(url: string, depth: '0' | '1', props: string): Promise<Response | null> {
+    const res = await this.request(
+      url,
+      'PROPFIND',
+      `<?xml version="1.0" encoding="utf-8" ?>
+<D:propfind xmlns:D="DAV:" xmlns:C="urn:ietf:params:xml:ns:caldav" xmlns:CS="http://calendarserver.org/ns/">
+  <D:prop>
+    ${props}
+  </D:prop>
+</D:propfind>`,
+      { Depth: depth, 'Content-Type': 'application/xml; charset=utf-8' }
+    )
+    if (res.status === 401) {
+      throw new Error(`CalDAV discovery failed with HTTP 401: ${await res.text()}`)
+    }
+    if (res.status === 207 || res.ok) return res
+    if ([403, 404, 405, 501].includes(res.status)) return null
+    throw new Error(`CalDAV discovery failed with HTTP ${res.status}: ${await res.text()}`)
   }
 
   /**

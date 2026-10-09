@@ -5,7 +5,7 @@ import { credentialsFilePath, isConfigured } from '../load-credentials'
 import { GoogleOAuthManager } from '../oauth/google-oauth'
 import { MicrosoftOAuthManager } from '../oauth/microsoft-oauth'
 import { SecureStore } from '../secure-store'
-import { normalizeCalDavUrl } from '../sync/caldav-discover'
+import { normalizeCalDavUrl, defaultCalDavName } from '../sync/caldav-discover'
 import { CalDavAdapter } from '../sync/caldav-adapter'
 import { SyncWorker } from '../sync/sync-worker'
 import { detachAccount } from '../db/repos/detach-account'
@@ -146,19 +146,22 @@ export function registerAuthSyncIpcHandlers(): void {
         password: input.password
       })
 
-      // Test discovery against server
-      const calendars = await adapter.discoverCalendars()
+      // Follow the address down to where the calendars actually are, so a bare
+      // server URL works. An account with nothing to show is refused here
+      // rather than connected empty - the old behaviour, which looked like a
+      // sync bug.
+      const { url: calendarHomeUrl, calendars } = await adapter.locateCalendarHome()
       if (calendars.length === 0) {
-        console.warn('CalDAV connected but no calendar collection discovered at base URL.')
+        throw new Error(`No calendars found at ${normalizedUrl}`)
       }
 
       const accountId = `acc_caldav_${Buffer.from(normalizedUrl).toString('hex').slice(0, 10)}`
-      const displayName = input.name || `${input.provider.toUpperCase()} (${input.username})`
+      const displayName = input.name?.trim() || defaultCalDavName(input.provider, normalizedUrl)
       const now = new Date().toISOString()
 
       // Store credentials encrypted in SecureStore
       secureStore.storeToken(accountId, {
-        url: normalizedUrl,
+        url: calendarHomeUrl,
         username: input.username,
         password: input.password,
         provider: input.provider
