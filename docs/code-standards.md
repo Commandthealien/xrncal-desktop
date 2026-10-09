@@ -197,5 +197,3 @@ IPC handlers should `try/catch` and return a typed error shape rather than throw
 
 - All 10 phases were implemented on the main branch as a greenfield build.
 - Commit messages follow the format: `feat(phase-N): brief description`.
-- Plans saved under `plans/<timestamp>-<slug>/`.
-- Journals saved under `docs/journals/<date>-<phase-slug>.md`.

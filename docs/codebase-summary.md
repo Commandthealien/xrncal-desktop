@@ -101,18 +101,13 @@ xrncal/
 │       └── ipc-contract.ts      # IPC_CHANNELS constants and XrncalAPI interface
 ├── tests/                       # Vitest unit tests (371 tests / 44 files)
 │   └── stubs/electron.ts        # `electron` module stub for main-process tests
-├── docs/
-│   ├── urd.md                   # User Requirements Document
-│   ├── design-guidelines.md     # Visual language and design tokens
-│   ├── project-overview-pdr.md  # Product overview + decision record (this plane)
-│   ├── codebase-summary.md      # This file
-│   ├── system-architecture.md
-│   ├── code-standards.md
-│   └── journals/                # Per-phase implementation journals
-└── plans/
-    └── 260818-2006-electron-xrncal-rebuild/
-        ├── plan.md              # Master plan (all 10 phases)
-        └── phase-01 … phase-10  # Phase detail documents
+└── docs/
+    ├── urd.md                   # User Requirements Document
+    ├── design-guidelines.md     # Visual language and design tokens
+    ├── project-overview-pdr.md  # Product overview + decision record (this plane)
+    ├── codebase-summary.md      # This file
+    ├── system-architecture.md
+    └── code-standards.md
 ```
 
 ---
