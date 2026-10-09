@@ -2,7 +2,6 @@ import React from 'react'
 import { useTranslation } from 'react-i18next'
 import {
   X,
-  Users,
   ChevronLeft,
   ChevronRight,
   SlidersHorizontal,
@@ -17,23 +16,19 @@ import {
   Globe,
   HardDriveDownload
 } from 'lucide-react'
-import type { Calendar } from '@shared/event-model'
 import type { ThemeConfig, ThemeMode } from '@shared/theme-mode'
 import type { DisplayPreferences } from '../context/DisplayPreferencesContext'
 import { NumberInput, CustomSelect, toast } from './ui'
 import { SNAP_STEP_OPTIONS } from '../dnd/resize-math'
 import AppearanceSettings from './AppearanceSettings'
-import HolidayCalendarToggle from './HolidayCalendarToggle'
-import { CALENDAR_COLOR_PALETTE } from '../lib/calendar-colors'
 
 /** `null` is the panel's root list; anything else is the one level below it. */
-export type SettingsSection = 'general' | 'appearance' | 'view' | 'calendars'
+export type SettingsSection = 'general' | 'appearance' | 'view'
 
 const SECTIONS: { id: SettingsSection; icon: typeof SlidersHorizontal }[] = [
   { id: 'appearance', icon: Palette },
   { id: 'general', icon: SlidersHorizontal },
-  { id: 'view', icon: CalendarRange },
-  { id: 'calendars', icon: CalendarDays }
+  { id: 'view', icon: CalendarRange }
 ]
 
 interface SettingsPanelProps {
@@ -71,12 +66,7 @@ interface SettingsPanelProps {
   autoHideHeader: boolean
   onToggleAutoHideHeader: (next: boolean) => void
 
-  calendars: Calendar[]
-  colorPickerCalId: string | null
-  onColorPickerToggle: (id: string | null) => void
-  onToggleCalendarVisibility: (cal: Calendar) => void
-  onChangeCalendarColor: (cal: Calendar, hex: string) => void
-  onCalendarsChanged: () => void
+  /** Opens the accounts dialog, which owns calendars and accounts now. */
   onManageAccounts: () => void
 
   onOpenShortcuts: () => void
@@ -179,6 +169,17 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = (props) => {
                   <ChevronRight className="h-3.5 w-3.5 shrink-0 text-muted" />
                 </button>
               ))}
+
+              {/* Calendars and accounts have their own dialog; this is a way in, not a copy. */}
+              <button
+                type="button"
+                onClick={props.onManageAccounts}
+                className="flex w-full items-center gap-2.5 rounded-[3px] px-2.5 py-2.5 text-left text-sm text-primary transition-colors hover:bg-hover"
+              >
+                <CalendarDays className="h-4 w-4 shrink-0 text-muted" />
+                <span className="flex-1 truncate">{t('settings.tabCalendars')}</span>
+                <ChevronRight className="h-3.5 w-3.5 shrink-0 text-muted" />
+              </button>
 
               <div className="my-2 border-t border-hairline" />
 
@@ -365,107 +366,6 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = (props) => {
                       ]}
                     />
                   </div>
-                </div>
-              )}
-
-              {props.section === 'calendars' && (
-                <div className="space-y-4 py-2">
-                  <div>
-                    <div className="mb-1 text-xs font-medium text-muted">
-                      {t('settings.myCalendars')}
-                    </div>
-                    {props.calendars.length > 0 ? (
-                      props.calendars.map((cal) => (
-                        <div
-                          key={cal.id}
-                          className="relative flex items-center gap-2 rounded-[3px] px-1 py-1.5 text-xs text-primary transition-colors hover:bg-hover"
-                        >
-                          <label className="flex min-w-0 flex-1 cursor-pointer items-center gap-2">
-                            <input
-                              type="checkbox"
-                              checked={cal.isVisible}
-                              onChange={() => props.onToggleCalendarVisibility(cal)}
-                              className="h-3.5 w-3.5 cursor-pointer rounded-[3px] accent-accent"
-                            />
-                            <button
-                              type="button"
-                              title={t('settings.changeColor')}
-                              onClick={(e) => {
-                                e.preventDefault()
-                                props.onColorPickerToggle(
-                                  props.colorPickerCalId === cal.id ? null : cal.id
-                                )
-                              }}
-                              className="h-2.5 w-2.5 shrink-0 cursor-pointer rounded-full ring-offset-1 transition-all hover:ring-2 hover:ring-hairline"
-                              style={{ backgroundColor: cal.color }}
-                            />
-                            <span className="flex-1 truncate font-medium">{cal.name}</span>
-                          </label>
-                          {cal.isReadOnly && (
-                            <span className="rounded-[3px] bg-hover px-1.5 py-0.5 text-[9px] font-medium text-muted">
-                              {t('common.readOnlyShort')}
-                            </span>
-                          )}
-
-                          {props.colorPickerCalId === cal.id && (
-                            <div
-                              className="absolute top-full right-0 z-20 mt-1 grid grid-cols-8 gap-1.5 border border-hairline bg-surface p-2 shadow-lg"
-                              style={{ borderRadius: 'var(--radius-control)' }}
-                            >
-                              {CALENDAR_COLOR_PALETTE.map((hex) => {
-                                const usedByOther = props.calendars.some(
-                                  (other) =>
-                                    other.id !== cal.id &&
-                                    other.color?.toLowerCase() === hex.toLowerCase()
-                                )
-                                return (
-                                  <button
-                                    key={hex}
-                                    type="button"
-                                    onClick={() => props.onChangeCalendarColor(cal, hex)}
-                                    className="relative h-5 w-5 shrink-0 cursor-pointer rounded-full transition-transform hover:scale-110"
-                                    style={{
-                                      backgroundColor: hex,
-                                      outline:
-                                        cal.color === hex
-                                          ? '2px solid var(--color-border)'
-                                          : 'none',
-                                      outlineOffset: '1px'
-                                    }}
-                                    title={
-                                      usedByOther ? `${hex} (${t('settings.colorInUse')})` : hex
-                                    }
-                                  >
-                                    {usedByOther && (
-                                      <span className="absolute -top-0.5 -right-0.5 h-1.5 w-1.5 rounded-full border border-hairline bg-surface" />
-                                    )}
-                                  </button>
-                                )
-                              })}
-                            </div>
-                          )}
-                        </div>
-                      ))
-                    ) : (
-                      <div className="px-1 py-1.5 text-xs text-muted">
-                        {t('settings.noCalendars')}
-                      </div>
-                    )}
-                  </div>
-
-                  <HolidayCalendarToggle
-                    calendars={props.calendars}
-                    onCalendarsChanged={props.onCalendarsChanged}
-                  />
-
-                  <button
-                    type="button"
-                    className="gc-btn w-full justify-center"
-                    onClick={props.onManageAccounts}
-                  >
-                    <Users className="h-4 w-4" />
-                    <span>{t('settings.manageAccounts')}</span>
-                  </button>
                 </div>
               )}
             </div>

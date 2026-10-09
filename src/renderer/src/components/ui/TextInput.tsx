@@ -1,5 +1,5 @@
 import i18n from '../../i18n'
-import React, { useState } from 'react'
+import React, { useId, useState } from 'react'
 import { Eye, EyeOff, X } from 'lucide-react'
 
 export interface TextInputProps {
@@ -42,6 +42,9 @@ export const TextInput: React.FC<TextInputProps> = ({
   onKeyDown
 }) => {
   const [showPassword, setShowPassword] = useState(false)
+  // Ties the label to the input, so clicking the label focuses the field and a
+  // screen reader names it.
+  const inputId = useId()
 
   const actualType = type === 'password' ? (showPassword ? 'text' : 'password') : type
 
@@ -54,7 +57,7 @@ export const TextInput: React.FC<TextInputProps> = ({
   return (
     <div className={`w-full ${className}`}>
       {label && (
-        <label className="block text-[12px] font-normal text-muted mb-1.5">
+        <label htmlFor={inputId} className="block text-[12px] font-normal text-muted mb-1.5">
           {label} {required && <span className="text-today">*</span>}
         </label>
       )}
@@ -72,6 +75,7 @@ export const TextInput: React.FC<TextInputProps> = ({
         )}
 
         <input
+          id={inputId}
           type={actualType}
           disabled={disabled}
           value={value}

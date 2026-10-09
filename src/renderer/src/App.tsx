@@ -5,6 +5,7 @@ import type { AppLocale } from '@shared/ipc-contract'
 import type { AppSettings } from '@shared/settings-contract'
 import type {
   Calendar,
+  CalendarAccount,
   ExpandedOccurrence,
   CreateEventInput,
   UpdateEventInput,
@@ -26,7 +27,8 @@ import EventEditorDialog, {
 } from './editor/EventEditorDialog'
 import RecurringScopeDialog from './editor/RecurringScopeDialog'
 import DropActionPopover, { type PendingDropAction } from './dnd/DropActionPopover'
-import AccountManagerModal from './components/AccountManagerModal'
+import AccountsDialog from './components/accounts/AccountsDialog'
+import type { AccountsView } from './components/accounts/accounts-nav'
 import SearchPaletteModal from './components/SearchPaletteModal'
 import SettingsPanel, { type SettingsSection } from './components/SettingsPanel'
 import KeyboardShortcutsModal from './components/KeyboardShortcutsModal'
@@ -48,6 +50,9 @@ const TIMEZONE_NAMES: string[] = (() => {
   }
 })()
 
+/** The dialog's start when nothing more specific was asked for; stable so it never resets the stack. */
+const ACCOUNTS_LIST: AccountsView[] = [{ name: 'list' }]
+
 export const App: React.FC = () => {
   const { t, i18n } = useTranslation()
   const { mode, themeConfig, setThemeConfig, persistMode, loadFromSettings } = useTheme()
@@ -58,15 +63,17 @@ export const App: React.FC = () => {
   const [platform, setPlatform] = useState<string>('win32')
   const [isSettingsOpen, setIsSettingsOpen] = useState(false)
   const [settingsSection, setSettingsSection] = useState<SettingsSection | null>(null)
-  const [colorPickerCalId, setColorPickerCalId] = useState<string | null>(null)
-  const [isAccountModalOpen, setIsAccountModalOpen] = useState(false)
+  // The pages the accounts dialog opens on; null while it is closed. Held in
+  // state so the array keeps its identity while open - the dialog resets its
+  // page stack whenever this changes.
+  const [accountsDialog, setAccountsDialog] = useState<AccountsView[] | null>(null)
   const [isSearchPaletteOpen, setIsSearchPaletteOpen] = useState(false)
   const [isShortcutsModalOpen, setIsShortcutsModalOpen] = useState(false)
   const [isConflictsModalOpen, setIsConflictsModalOpen] = useState(false)
   const [conflicts, setConflicts] = useState<SyncConflict[]>([])
   const [showLunar, setShowLunar] = useState(true)
   const [showWeekNumbers, setShowWeekNumbers] = useState(true)
-  const [showMiniCalendar, setShowMiniCalendar] = useState(false)
+  const [showMiniCalendar, setShowMiniCalendar] = useState(true)
   const [autoHideHeader, setAutoHideHeader] = useState(true)
   const [timeFormat, setTimeFormat] = useState<DisplayPreferences['timeFormat']>('24h')
   const [dayStartHour, setDayStartHour] = useState(7)
@@ -79,6 +86,7 @@ export const App: React.FC = () => {
   const [firstDayOfWeek, setFirstDayOfWeek] = useState(1)
 
   const [calendars, setCalendars] = useState<Calendar[]>([])
+  const [accounts, setAccounts] = useState<CalendarAccount[]>([])
   const [occurrences, setOccurrences] = useState<ExpandedOccurrence[]>([])
   // Which occurrence the keyboard cursor is sitting on. Kept as a pair because
   // an occurrence id is `${eventId}_${originalStartUtc}` - moving a one-off
@@ -142,8 +150,12 @@ export const App: React.FC = () => {
     if (!window.xrncal?.calendars || !window.xrncal?.events) return
 
     try {
-      const cals = await window.xrncal.calendars.list()
+      const [cals, accs] = await Promise.all([
+        window.xrncal.calendars.list(),
+        window.xrncal.auth?.listAccounts() ?? Promise.resolve([] as CalendarAccount[])
+      ])
       setCalendars(cals)
+      setAccounts(accs)
 
       const activeCalIds = cals.filter((c) => c.isVisible).map((c) => c.id)
       if (activeCalIds.length > 0) {
@@ -369,7 +381,7 @@ export const App: React.FC = () => {
           const settings = await window.xrncal.settings.getAll()
           setShowLunar(settings.showLunar ?? true)
           setShowWeekNumbers(settings.showWeekNumbers ?? true)
-          setShowMiniCalendar(settings.showMiniCalendar ?? false)
+          setShowMiniCalendar(settings.showMiniCalendar ?? true)
           setAutoHideHeader(settings.autoHideHeader ?? true)
           setTimeFormat(settings.timeFormat ?? '24h')
           setDayStartHour(settings.dayStartHour ?? 7)
@@ -522,11 +534,20 @@ export const App: React.FC = () => {
     }
   }
 
+  /** Several visibility changes at once ("show only this"), then one reload. */
+  const setCalendarsVisibility = async (changes: { id: string; isVisible: boolean }[]) => {
+    if (!window.xrncal?.calendars || changes.length === 0) return
+    const api = window.xrncal.calendars
+    const updated = await Promise.all(changes.map((c) => api.update(c.id, { isVisible: c.isVisible })))
+    const byId = new Map(updated.map((c) => [c.id, c]))
+    setCalendars((prev) => prev.map((c) => byId.get(c.id) ?? c))
+    await loadCalendarsAndEvents()
+  }
+
   const changeCalendarColor = async (cal: Calendar, color: string) => {
     if (!window.xrncal?.calendars) return
     const updated = await window.xrncal.calendars.update(cal.id, { color })
     setCalendars((prev) => prev.map((c) => (c.id === updated.id ? updated : c)))
-    setColorPickerCalId(null)
     await loadCalendarsAndEvents()
   }
 
@@ -851,16 +872,16 @@ export const App: React.FC = () => {
   const isOverlayOpen =
     isEditorOpen ||
     isSettingsOpen ||
-    isAccountModalOpen ||
+    Boolean(accountsDialog) ||
     isShortcutsModalOpen ||
     isConflictsModalOpen ||
     isSearchPaletteOpen ||
     Boolean(pendingRecurringScope) ||
     Boolean(pendingDrop)
 
-  // These three close themselves on Escape. Handling it here as well would
-  // close two layers with one press.
-  const ownsEscape = isEditorOpen || isSearchPaletteOpen || Boolean(pendingDrop)
+  // These close themselves on Escape - the accounts dialog steps back a page
+  // per press. Handling it here as well would close two layers with one press.
+  const ownsEscape = isEditorOpen || isSearchPaletteOpen || Boolean(pendingDrop) || Boolean(accountsDialog)
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -882,7 +903,6 @@ export const App: React.FC = () => {
         if (pendingRecurringScope) setPendingRecurringScope(null)
         else if (isShortcutsModalOpen) setIsShortcutsModalOpen(false)
         else if (isConflictsModalOpen) setIsConflictsModalOpen(false)
-        else if (isAccountModalOpen) setIsAccountModalOpen(false)
         else if (isSettingsOpen) setIsSettingsOpen(false)
         else setSelection(null)
         return
@@ -1038,7 +1058,6 @@ export const App: React.FC = () => {
     handleNext,
     handlePrev,
     handleSelectOccurrence,
-    isAccountModalOpen,
     isConflictsModalOpen,
     isOverlayOpen,
     isSearchPaletteOpen,
@@ -1151,6 +1170,15 @@ export const App: React.FC = () => {
             onSelectDate={setAnchorDate}
             onPrevMonth={() => setAnchorDate((d) => d.minus({ months: 1 }))}
             onNextMonth={() => setAnchorDate((d) => d.plus({ months: 1 }))}
+            accounts={accounts}
+            calendars={calendars}
+            onToggleCalendarVisibility={toggleCalendarVisibility}
+            onSetCalendarsVisibility={setCalendarsVisibility}
+            onChangeCalendarColor={changeCalendarColor}
+            onOpenAccount={(accountId) =>
+              setAccountsDialog(accountId ? [{ name: 'list' }, { name: 'account', accountId }] : [{ name: 'list' }])
+            }
+            onAddAccount={() => setAccountsDialog([{ name: 'list' }, { name: 'add' }])}
           />
         )}
 
@@ -1323,10 +1351,15 @@ export const App: React.FC = () => {
         onCancel={() => setPendingDrop(null)}
       />
 
-      <AccountManagerModal
-        isOpen={isAccountModalOpen}
-        onClose={() => setIsAccountModalOpen(false)}
-        onAccountsChanged={() => loadCalendarsAndEvents()}
+      <AccountsDialog
+        isOpen={Boolean(accountsDialog)}
+        start={accountsDialog ?? ACCOUNTS_LIST}
+        accounts={accounts}
+        calendars={calendars}
+        onClose={() => setAccountsDialog(null)}
+        onRefresh={loadCalendarsAndEvents}
+        onToggleVisibility={toggleCalendarVisibility}
+        onChangeColor={changeCalendarColor}
       />
 
       <SettingsPanel
@@ -1360,15 +1393,9 @@ export const App: React.FC = () => {
         timezoneNames={TIMEZONE_NAMES}
         autoHideHeader={autoHideHeader}
         onToggleAutoHideHeader={toggleAutoHideHeader}
-        calendars={calendars}
-        colorPickerCalId={colorPickerCalId}
-        onColorPickerToggle={setColorPickerCalId}
-        onToggleCalendarVisibility={toggleCalendarVisibility}
-        onChangeCalendarColor={changeCalendarColor}
-        onCalendarsChanged={loadCalendarsAndEvents}
         onManageAccounts={() => {
           setIsSettingsOpen(false)
-          setIsAccountModalOpen(true)
+          setAccountsDialog([{ name: 'list' }])
         }}
         onOpenShortcuts={() => setIsShortcutsModalOpen(true)}
         conflictCount={conflicts.length}

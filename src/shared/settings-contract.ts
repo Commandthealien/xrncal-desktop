@@ -36,7 +36,9 @@ export const DEFAULT_APP_SETTINGS: AppSettings = {
   locale: 'en',
   showLunar: true,
   showWeekNumbers: true,
-  showMiniCalendar: false,
+  // The sidebar holds the calendar list now, not just the mini calendar, so it
+  // starts shown. Only the default moves: a user who switched it off stays off.
+  showMiniCalendar: true,
   firstDayOfWeek: 1, // ISO standard Monday
   timeFormat: '24h',
   theme: 'dark',

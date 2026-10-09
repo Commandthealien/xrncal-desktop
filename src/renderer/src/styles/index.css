@@ -172,6 +172,14 @@
     @apply inline-flex cursor-pointer items-center justify-center gap-1.5 rounded-[3px] bg-accent px-3 py-1.5 text-xs font-semibold text-white transition-opacity duration-150 hover:opacity-90;
   }
 
+  /* A disabled button has to look it: the primary button stayed full accent
+     colour while disabled, so an empty form's Connect looked pressable. */
+  .gc-btn:disabled,
+  .gc-btn-primary:disabled,
+  .gc-icon-btn:disabled {
+    @apply cursor-not-allowed opacity-50 hover:opacity-50;
+  }
+
   .gc-input {
     @apply rounded-[3px] border border-hairline bg-surface px-3 py-2 text-sm text-primary placeholder:text-muted focus:border-accent focus:outline-hidden;
   }

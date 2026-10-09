@@ -59,7 +59,8 @@ xrncal/
 │   │       │   ├── YearView.tsx
 │   │       │   └── ListView.tsx
 │   │       ├── components/      # UI components
-│   │       │   ├── shell/       # AppHeader.tsx, AppSidebar.tsx, ViewSwitcher.tsx
+│   │       │   ├── shell/       # AppHeader.tsx, AppSidebar.tsx (mini calendar + SidebarCalendars.tsx), ViewSwitcher.tsx
+│   │       │   ├── accounts/    # AccountsDialog.tsx (page stack), AccountViews.tsx, AddAccountViews.tsx, CalendarToggle.tsx, ProviderMark.tsx
 │   │       │   ├── ui/          # Primitives: TextInput, TextArea, NumberInput, CustomSelect, DatePicker, TimePicker, ToggleSwitch, Checkbox, FormRow, toast, index.ts
 │   │       │   ├── MiniCalendar.tsx
 │   │       │   ├── EventPill.tsx
@@ -71,10 +72,8 @@ xrncal/
 │   │       │   ├── LunarLabel.tsx
 │   │       │   ├── WeekNumber.tsx
 │   │       │   ├── ResizeTimeTooltip.tsx
-│   │       │   ├── AccountManagerModal.tsx
-│   │       │   ├── CalDavConnectModal.tsx
 │   │       │   ├── SyncConflictsModal.tsx
-│   │       │   ├── HolidayCalendarToggle.tsx
+│   │       │   ├── HolidayCalendarToggle.tsx   # Used by the accounts dialog's holidays page
 │   │       │   ├── KeyboardShortcutsModal.tsx
 │   │       │   ├── SearchPaletteModal.tsx
 │   │       │   └── ErrorBoundary.tsx

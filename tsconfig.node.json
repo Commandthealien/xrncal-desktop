@@ -53,6 +53,7 @@
     "tests/i18n-parity.test.ts",
     "tests/layout-allday-events.test.ts",
     "tests/roving-index.test.ts",
-    "tests/wheel-navigation.test.ts"
+    "tests/wheel-navigation.test.ts",
+    "tests/account-display.test.ts"
   ]
 }
