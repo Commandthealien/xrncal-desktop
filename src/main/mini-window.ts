@@ -7,11 +7,15 @@ import { CalendarsRepo } from './db/repos/calendars-repo'
 import { DateTime } from 'luxon'
 
 let miniWindow: BrowserWindow | null = null
-let mainWindowRef: BrowserWindow | null = null
+/**
+ * How to bring the main window back. A function rather than the window itself:
+ * the main window can be closed (and destroyed) while the mini window lives on,
+ * and a held reference then pointed at a dead window, so "Open xrncal" did
+ * nothing. index.ts recreates the window when it has to.
+ */
+let showMainWindow: () => void = () => {}
 
-
-export function createMiniWindow(mainWin: BrowserWindow): BrowserWindow {
-  mainWindowRef = mainWin
+export function createMiniWindow(): BrowserWindow {
   if (miniWindow && !miniWindow.isDestroyed()) {
     return miniWindow
   }
@@ -93,9 +97,7 @@ export function positionMiniWindow(trayBounds?: { x: number; y: number; width: n
 
 export function toggleMiniWindow(trayBounds?: { x: number; y: number; width: number; height: number }): void {
   if (!miniWindow || miniWindow.isDestroyed()) {
-    if (mainWindowRef) {
-      createMiniWindow(mainWindowRef)
-    }
+    createMiniWindow()
   }
 
   if (!miniWindow) return
@@ -109,8 +111,8 @@ export function toggleMiniWindow(trayBounds?: { x: number; y: number; width: num
   }
 }
 
-export function registerMiniIpcHandlers(mainWin: BrowserWindow): void {
-  mainWindowRef = mainWin
+export function registerMiniIpcHandlers(showMain: () => void): void {
+  showMainWindow = showMain
   const db = getDatabase()
   const eventsRepo = new EventsRepo(db)
   const calendarsRepo = new CalendarsRepo(db)
@@ -121,11 +123,7 @@ export function registerMiniIpcHandlers(mainWin: BrowserWindow): void {
   ipcMain.removeHandler(IPC_CHANNELS.MINI.SET_ALWAYS_ON_TOP)
 
   ipcMain.handle(IPC_CHANNELS.MINI.OPEN_MAIN, () => {
-    if (mainWindowRef && !mainWindowRef.isDestroyed()) {
-      if (mainWindowRef.isMinimized()) mainWindowRef.restore()
-      mainWindowRef.show()
-      mainWindowRef.focus()
-    }
+    showMainWindow()
   })
 
   ipcMain.handle(IPC_CHANNELS.MINI.TOGGLE, () => {

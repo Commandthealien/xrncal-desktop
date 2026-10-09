@@ -44,6 +44,13 @@ if (!gotTheLock) {
       mainWindow?.show()
     })
 
+    // Closing the window destroys it, but the app can outlive it - the tray and
+    // a hidden mini window keep it running. Forget the dead window so the next
+    // request builds a new one instead of calling into a destroyed object.
+    mainWindow.on('closed', () => {
+      mainWindow = null
+    })
+
     // Adaptive sync polling on focus/blur; also sync right away when the user comes back
     mainWindow.on('focus', () => {
       const worker = getSyncWorker()
@@ -91,15 +98,27 @@ if (!gotTheLock) {
     }
   }
 
-  // Focus the existing window when a second instance tries to run
-  app.on('second-instance', () => {
-    if (mainWindow) {
-      if (mainWindow.isMinimized()) {
-        mainWindow.restore()
-      }
-      mainWindow.focus()
+  /**
+   * Bring the main window to the front, building a new one if it was closed.
+   * Everything that means "open xrncal" goes through here: launching it again,
+   * the tray's Open item and the mini window's button. Each used to poke the
+   * first window it was given; once that window had been closed while the tray
+   * kept the app alive, launching threw "Object has been destroyed" in a modal
+   * error box and the tray item silently did nothing - the app was stuck until
+   * it was killed.
+   */
+  function showMainWindow(): void {
+    if (!mainWindow || mainWindow.isDestroyed()) {
+      createWindow()
+      return // shown on ready-to-show
     }
-  })
+    if (mainWindow.isMinimized()) mainWindow.restore()
+    mainWindow.show()
+    mainWindow.focus()
+  }
+
+  // Launching again while running opens the existing app instead of a second copy.
+  app.on('second-instance', () => showMainWindow())
 
   app.whenReady().then(() => {
     adoptLegacyUserDataForApp()
@@ -114,20 +133,14 @@ if (!gotTheLock) {
     registerIpcHandlers()
     createWindow()
 
-    if (mainWindow) {
-      registerMiniIpcHandlers(mainWindow)
-      try {
-        setupTray(mainWindow)
-      } catch (err) {
-        console.warn('System tray initialization skipped or unsupported:', err)
-      }
+    registerMiniIpcHandlers(showMainWindow)
+    try {
+      setupTray(showMainWindow)
+    } catch (err) {
+      console.warn('System tray initialization skipped or unsupported:', err)
     }
 
-    app.on('activate', () => {
-      if (BrowserWindow.getAllWindows().length === 0) {
-        createWindow()
-      }
-    })
+    app.on('activate', () => showMainWindow())
   })
 
   app.on('window-all-closed', () => {

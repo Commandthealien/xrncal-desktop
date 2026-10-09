@@ -1,4 +1,4 @@
-import { app, Tray, Menu, nativeImage, BrowserWindow } from 'electron'
+import { app, Tray, Menu, nativeImage } from 'electron'
 import { toggleMiniWindow } from './mini-window'
 import { mt, loadMainLocaleFromDb } from './i18n-main'
 
@@ -16,7 +16,8 @@ function createCalendarTrayIcon(): Electron.NativeImage {
   return nativeImage.createFromBuffer(Buffer.from(svg))
 }
 
-export function setupTray(mainWindow: BrowserWindow): Tray {
+/** `showMainWindow` brings the main window back, recreating it if it was closed. */
+export function setupTray(showMainWindow: () => void): Tray {
   if (trayInstance && !trayInstance.isDestroyed()) {
     return trayInstance
   }
@@ -29,13 +30,7 @@ export function setupTray(mainWindow: BrowserWindow): Tray {
   const contextMenu = Menu.buildFromTemplate([
     {
       label: mt('tray.openMain'),
-      click: () => {
-        if (!mainWindow.isDestroyed()) {
-          if (mainWindow.isMinimized()) mainWindow.restore()
-          mainWindow.show()
-          mainWindow.focus()
-        }
-      }
+      click: () => showMainWindow()
     },
     {
       label: mt('tray.miniWindow'),
