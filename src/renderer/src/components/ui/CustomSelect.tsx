@@ -4,7 +4,7 @@ import { createPortal } from 'react-dom'
 import { ChevronDown, Check, Search } from 'lucide-react'
 import { nextEnabledIndex, firstEnabledIndex } from '../../lib/roving-index'
 
-export interface SelectOption {
+interface SelectOption {
   value: string
   label: string
   color?: string
@@ -14,7 +14,7 @@ export interface SelectOption {
   disabled?: boolean
 }
 
-export interface CustomSelectProps {
+interface CustomSelectProps {
   value: string
   onChange: (value: string) => void
   options: SelectOption[]

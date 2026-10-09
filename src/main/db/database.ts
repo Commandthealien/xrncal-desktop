@@ -265,7 +265,7 @@ WHERE all_day = 1
  *
  * NULL means "inherit from the master", which is what every existing row does.
  */
-export const MIGRATION_011_SQL = `
+const MIGRATION_011_SQL = `
 ALTER TABLE event_exceptions ADD COLUMN all_day INTEGER;
 
 -- Backfill overrides already imported from a provider. Calendars now hold sync

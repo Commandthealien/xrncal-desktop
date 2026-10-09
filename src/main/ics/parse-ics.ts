@@ -5,7 +5,7 @@ import type { CreateEventInput, EventException } from '@shared/event-model'
 
 export const MAX_ICS_SIZE_BYTES = 5 * 1024 * 1024 // 5 MB cap
 
-export interface ParsedIcsData {
+interface ParsedIcsData {
   events: (CreateEventInput & { uid?: string })[]
   exceptions: (Omit<EventException, 'id' | 'createdAt' | 'updatedAt'> & { masterUid?: string })[]
 }

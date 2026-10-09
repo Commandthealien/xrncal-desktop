@@ -8,12 +8,12 @@ import {
 } from './resize-math'
 import { useDisplayPreferences } from '../context/DisplayPreferencesContext'
 
-export interface ResizeGeometry {
+interface ResizeGeometry {
   gridTop: number
   hourHeight: number
 }
 
-export interface ResizePreview {
+interface ResizePreview {
   occId: string
   occ: ExpandedOccurrence
   start: DateTime
@@ -172,5 +172,3 @@ export function useEventResize(options: {
 
   return { preview, startResize, isResizing: Boolean(preview) }
 }
-
-export default useEventResize

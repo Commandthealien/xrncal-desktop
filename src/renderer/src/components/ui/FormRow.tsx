@@ -1,6 +1,6 @@
 import React from 'react'
 
-export interface FormRowProps {
+interface FormRowProps {
   /** Muted label shown in the left column (~115 px). */
   label: string
   /** Whether to show a 1 px hairline at the bottom of the row. */

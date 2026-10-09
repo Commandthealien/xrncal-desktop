@@ -15,7 +15,7 @@ let miniWindow: BrowserWindow | null = null
  */
 let showMainWindow: () => void = () => {}
 
-export function createMiniWindow(): BrowserWindow {
+function createMiniWindow(): BrowserWindow {
   if (miniWindow && !miniWindow.isDestroyed()) {
     return miniWindow
   }
@@ -65,7 +65,7 @@ export function createMiniWindow(): BrowserWindow {
   return miniWindow
 }
 
-export function positionMiniWindow(trayBounds?: { x: number; y: number; width: number; height: number }): void {
+function positionMiniWindow(trayBounds?: { x: number; y: number; width: number; height: number }): void {
   if (!miniWindow || miniWindow.isDestroyed()) return
 
   const display = screen.getPrimaryDisplay()

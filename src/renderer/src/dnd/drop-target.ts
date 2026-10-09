@@ -246,7 +246,7 @@ export function resolveDropRange(args: {
  * An event that covered several days keeps that many days; a normal one-day
  * event becomes a single all-day event.
  */
-export function allDayRangeForDrop(
+function allDayRangeForDrop(
   targetDate: DateTime,
   origStart: DateTime,
   origEnd: DateTime

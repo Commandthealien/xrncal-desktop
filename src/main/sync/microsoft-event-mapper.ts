@@ -11,13 +11,13 @@ import {
   type GraphRecurrence
 } from './graph-recurrence-map'
 
-export interface GraphDateTimeTimeZone {
+interface GraphDateTimeTimeZone {
   dateTime: string // e.g. "2026-08-18T10:00:00.0000000"
   timeZone: string // e.g. "UTC", "SE Asia Standard Time", "Asia/Ho_Chi_Minh"
 }
 
 /** What we send to Graph - see GoogleEventWritePayload for why the id is absent. */
-export type GraphEventWritePayload = Omit<MicrosoftGraphApiEvent, 'id'>
+type GraphEventWritePayload = Omit<MicrosoftGraphApiEvent, 'id'>
 
 export interface MicrosoftGraphApiEvent {
   id: string
@@ -41,7 +41,7 @@ export interface MicrosoftGraphApiEvent {
 /**
  * Parse Graph DateTimeTimeZone to ISO UTC string
  */
-export function parseGraphDateTime(
+function parseGraphDateTime(
   dt?: GraphDateTimeTimeZone,
   isAllDay?: boolean
 ): { iso: string; tzid: string } {

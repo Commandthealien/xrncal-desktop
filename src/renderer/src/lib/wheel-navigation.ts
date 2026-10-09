@@ -28,7 +28,7 @@ export interface ScrollerMetrics {
   clientHeight: number
 }
 
-export interface WheelNavigationInput {
+interface WheelNavigationInput {
   deltaY: number
   /** `Date.now()` at the event. */
   now: number
@@ -43,7 +43,7 @@ export interface WheelNavigationInput {
   scroller?: ScrollerMetrics | null
 }
 
-export interface WheelNavigationOutcome {
+interface WheelNavigationOutcome {
   /** -1 back, +1 forward, 0 for "this gesture was not a step". */
   step: -1 | 0 | 1
   /** The gesture clock to carry into the next event. */

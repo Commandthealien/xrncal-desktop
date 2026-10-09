@@ -2,7 +2,7 @@
  * Canonical Calendar, Event, Recurrence, and Sync Domain Models
  */
 
-export type AccountType = 'local' | 'google' | 'graph' | 'caldav'
+type AccountType = 'local' | 'google' | 'graph' | 'caldav'
 
 export interface CalendarAccount {
   id: string
@@ -30,7 +30,7 @@ export interface Calendar {
   updatedAt: string
 }
 
-export type AttendeeResponseStatus = 'accepted' | 'declined' | 'tentative' | 'needsAction'
+type AttendeeResponseStatus = 'accepted' | 'declined' | 'tentative' | 'needsAction'
 
 export interface Attendee {
   email: string

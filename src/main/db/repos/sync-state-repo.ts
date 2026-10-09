@@ -1,6 +1,6 @@
 import type { ISqliteDatabase } from '../sqlite-driver'
 
-export interface CalendarSyncState {
+interface CalendarSyncState {
   calendarId: string
   syncToken: string | null
   syncStatus: string

@@ -2,7 +2,7 @@
  * CalDAV Discovery, URL Normalization, and XML Multistatus Parser
  */
 
-export type CalDavProvider = 'nextcloud' | 'icloud' | 'synology' | 'generic'
+type CalDavProvider = 'nextcloud' | 'icloud' | 'synology' | 'generic'
 
 export interface CalDavCalendarDescriptor {
   href: string

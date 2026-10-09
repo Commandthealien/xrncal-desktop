@@ -5,7 +5,7 @@
  */
 import { getDatabase } from './db/database'
 
-export type MainLocale = 'en' | 'vi'
+type MainLocale = 'en' | 'vi'
 
 let currentLocale: MainLocale = 'en'
 

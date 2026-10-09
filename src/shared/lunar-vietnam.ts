@@ -5,7 +5,7 @@
 
 import type { LunarRecurrenceSpec } from './event-model'
 
-export interface LunarDate {
+interface LunarDate {
   day: number
   month: number
   year: number

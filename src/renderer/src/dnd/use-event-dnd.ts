@@ -201,5 +201,3 @@ export function useEventDnD(
     markPointerBusyEnd
   }
 }
-
-export default useEventDnD

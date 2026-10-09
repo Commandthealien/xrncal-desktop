@@ -17,7 +17,7 @@ import ProviderMark from './ProviderMark'
 import type { AccountsPageProps } from './accounts-nav'
 
 /** The provider's name, e.g. "Google" - used in subtitles and the remove wording. */
-export function useProviderLabel() {
+function useProviderLabel() {
   const { t } = useTranslation()
   return (kind: CalendarGroup['kind']) =>
     kind === 'local' ? t('calendarList.thisComputer') : t(`addAccount.providers.${kind}.title`)

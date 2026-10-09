@@ -13,7 +13,7 @@ export interface DisplayPreferences {
   dragSnapMinutes: AppSettings['dragSnapMinutes']
 }
 
-export const DEFAULT_DISPLAY_PREFERENCES: DisplayPreferences = {
+const DEFAULT_DISPLAY_PREFERENCES: DisplayPreferences = {
   timeFormat: '24h',
   hourBlockSize: 'medium',
   dayStartHour: 7,

@@ -6,7 +6,7 @@ import type {
   CreateEventInput
 } from '@shared/event-model'
 
-export const GOOGLE_COLOR_MAP: Record<string, string> = {
+const GOOGLE_COLOR_MAP: Record<string, string> = {
   '1': '#7986cb', // Lavender
   '2': '#33b679', // Sage
   '3': '#8e24aa', // Grape
@@ -20,7 +20,7 @@ export const GOOGLE_COLOR_MAP: Record<string, string> = {
   '11': '#d50000'  // Tomato
 }
 
-export interface GoogleEventDateTime {
+interface GoogleEventDateTime {
   dateTime?: string
   date?: string
   timeZone?: string
@@ -31,7 +31,7 @@ export interface GoogleEventDateTime {
  * update it lives in the request URL, and on an insert Google assigns it. Typing
  * the write payload separately is what stops an id being put back by accident.
  */
-export type GoogleEventWritePayload = Omit<GoogleCalendarApiEvent, 'id'>
+type GoogleEventWritePayload = Omit<GoogleCalendarApiEvent, 'id'>
 
 export interface GoogleCalendarApiEvent {
   id: string
@@ -56,7 +56,7 @@ export interface GoogleCalendarApiEvent {
 }
 
 /** Reverse of GOOGLE_COLOR_MAP, for pushing a local hex colour back as a colorId. */
-export const GOOGLE_COLOR_ID_BY_HEX: Record<string, string> = Object.fromEntries(
+const GOOGLE_COLOR_ID_BY_HEX: Record<string, string> = Object.fromEntries(
   Object.entries(GOOGLE_COLOR_MAP).map(([id, hex]) => [hex.toLowerCase(), id])
 )
 
@@ -67,11 +67,11 @@ export const GOOGLE_COLOR_ID_BY_HEX: Record<string, string> = Object.fromEntries
  * per-client escape hatch and round-trip losslessly, so the link survives a
  * push/pull cycle instead of being dropped on the way out.
  */
-export const XRNCAL_MEETING_URL_PROP = 'xrncalMeetingUrl'
+const XRNCAL_MEETING_URL_PROP = 'xrncalMeetingUrl'
 
 /** The same property under the app's former name. Events pushed before the
  *  rename still carry it, so pulls read it as a fallback; pushes never write it. */
-export const LEGACY_MEETING_URL_PROP = 'goneMeetingUrl'
+const LEGACY_MEETING_URL_PROP = 'goneMeetingUrl'
 
 /**
  * Format Google Event DateTime to ISO UTC and determine all-day status
@@ -89,7 +89,7 @@ function normaliseEnd(
     : endInfo.iso
 }
 
-export function parseGoogleDateTime(dt?: GoogleEventDateTime): {
+function parseGoogleDateTime(dt?: GoogleEventDateTime): {
   iso: string
   allDay: boolean
   tzid: string

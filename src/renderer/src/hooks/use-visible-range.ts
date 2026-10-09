@@ -12,5 +12,3 @@ export function useVisibleRange(
 ): VisibleRange {
   return useMemo(() => getVisibleRange(anchorDate, view, locale), [anchorDate, view, locale])
 }
-
-export default useVisibleRange

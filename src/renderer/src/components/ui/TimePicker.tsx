@@ -6,7 +6,7 @@ import { formatClockTimeStr } from '@shared/time-format'
 import { useDisplayPreferences } from '../../context/DisplayPreferencesContext'
 import { nextEnabledIndex } from '../../lib/roving-index'
 
-export interface TimePickerProps {
+interface TimePickerProps {
   value: string // Format: HH:mm (e.g. "09:00", "14:30")
   onChange: (value: string) => void
   placeholder?: string

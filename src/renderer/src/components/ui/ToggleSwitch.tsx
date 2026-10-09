@@ -1,6 +1,6 @@
 import React from 'react'
 
-export interface ToggleSwitchProps {
+interface ToggleSwitchProps {
   checked: boolean
   onChange: (checked: boolean) => void
   label?: string

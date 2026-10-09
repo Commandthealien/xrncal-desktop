@@ -10,7 +10,7 @@
  */
 
 /** Default per-request ceiling. Generous enough for a slow CalDAV REPORT. */
-export const DEFAULT_REQUEST_TIMEOUT_MS = 30_000
+const DEFAULT_REQUEST_TIMEOUT_MS = 30_000
 
 export class RequestTimeoutError extends Error {
   constructor(url: string, timeoutMs: number) {

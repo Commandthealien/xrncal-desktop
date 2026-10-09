@@ -103,5 +103,3 @@ export const NotionToaster: React.FC = () => {
     />
   )
 }
-
-export default NotionToaster

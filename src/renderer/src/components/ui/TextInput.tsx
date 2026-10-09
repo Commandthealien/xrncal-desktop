@@ -2,7 +2,7 @@ import i18n from '../../i18n'
 import React, { useId, useState } from 'react'
 import { Eye, EyeOff, X } from 'lucide-react'
 
-export interface TextInputProps {
+interface TextInputProps {
   value: string
   onChange: (value: string) => void
   placeholder?: string

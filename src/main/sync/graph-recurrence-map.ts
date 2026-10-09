@@ -1,6 +1,6 @@
 import { DateTime } from 'luxon'
 
-export interface GraphRecurrencePattern {
+interface GraphRecurrencePattern {
   type: 'daily' | 'weekly' | 'absoluteMonthly' | 'relativeMonthly' | 'absoluteYearly' | 'relativeYearly'
   interval: number
   month?: number
@@ -10,7 +10,7 @@ export interface GraphRecurrencePattern {
   index?: 'first' | 'second' | 'third' | 'fourth' | 'last'
 }
 
-export interface GraphRecurrenceRange {
+interface GraphRecurrenceRange {
   type: 'endDate' | 'noEnd' | 'numbered'
   startDate: string // YYYY-MM-DD
   endDate?: string  // YYYY-MM-DD

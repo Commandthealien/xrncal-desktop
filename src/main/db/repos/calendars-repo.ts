@@ -1,7 +1,7 @@
 import type { ISqliteDatabase } from '../sqlite-driver'
 import type { Calendar } from '@shared/event-model'
 
-export interface CreateCalendarParams {
+interface CreateCalendarParams {
   id?: string
   accountId?: string
   name: string
@@ -11,7 +11,7 @@ export interface CreateCalendarParams {
   isDefault?: boolean
 }
 
-export interface UpdateCalendarParams {
+interface UpdateCalendarParams {
   name?: string
   color?: string
   isVisible?: boolean

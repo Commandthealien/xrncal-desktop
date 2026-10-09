@@ -11,7 +11,7 @@ import {
   X
 } from 'lucide-react'
 
-export interface DatePickerProps {
+interface DatePickerProps {
   value?: string // format: yyyy-MM-dd
   onChange: (value: string) => void
   placeholder?: string

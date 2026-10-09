@@ -10,7 +10,7 @@ import { CALENDAR_COLOR_PALETTE } from '../../lib/calendar-colors'
  * legend for the events on the grid, the way Google Calendar and OneCalendar
  * draw it, so there is no separate dot to tell apart from the checkbox.
  */
-export const CalendarCheck: React.FC<{
+const CalendarCheck: React.FC<{
   calendar: Calendar
   onToggle: () => void
   className?: string

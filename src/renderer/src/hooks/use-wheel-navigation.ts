@@ -1,7 +1,7 @@
 import React, { useCallback, useRef } from 'react'
 import { wheelNavigation, type ScrollerMetrics } from '../lib/wheel-navigation'
 
-export interface WheelNavigationOptions {
+interface WheelNavigationOptions {
   onPrev?: () => void
   onNext?: () => void
   /**
@@ -57,5 +57,3 @@ export function useWheelNavigation({
     [onPrev, onNext, scrollerRef]
   )
 }
-
-export default useWheelNavigation

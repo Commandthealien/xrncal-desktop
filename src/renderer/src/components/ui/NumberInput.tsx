@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import { Minus, Plus } from 'lucide-react'
 
-export interface NumberInputProps {
+interface NumberInputProps {
   value: number
   onChange: (value: number) => void
   min?: number

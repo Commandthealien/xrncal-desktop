@@ -12,7 +12,7 @@ export type ResizeEdge = 'n' | 's'
 
 /** Default grid step, used when no setting is threaded through. */
 export const RESIZE_SNAP_MINUTES = 15
-export const RESIZE_MIN_DURATION_MINUTES = 15
+const RESIZE_MIN_DURATION_MINUTES = 15
 
 /** The steps offered in settings. */
 export const SNAP_STEP_OPTIONS = [15, 30, 60] as const
@@ -22,7 +22,7 @@ export function snapMinutes(totalMinutes: number, step = RESIZE_SNAP_MINUTES): n
   return Math.round(totalMinutes / step) * step
 }
 
-export function minutesFromGridY(clientY: number, gridTop: number, hourHeight: number): number {
+function minutesFromGridY(clientY: number, gridTop: number, hourHeight: number): number {
   if (hourHeight <= 0) return 0
   return ((clientY - gridTop) / hourHeight) * 60
 }

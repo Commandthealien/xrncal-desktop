@@ -1,6 +1,6 @@
 import React from 'react'
 
-export interface TextAreaProps {
+interface TextAreaProps {
   value: string
   onChange: (value: string) => void
   placeholder?: string

@@ -10,7 +10,7 @@ import type { ExpandedOccurrence } from './event-model'
 import { compareOccurrencesWithinDay } from './occurrence-order'
 import { occurrenceDateKey } from './all-day'
 
-export type CursorDirection = 1 | -1
+type CursorDirection = 1 | -1
 
 /**
  * The order the keyboard cursor walks occurrences in: day by day, and inside a
@@ -60,7 +60,7 @@ export function stepCursor(
   return before.length > 0 ? before[before.length - 1] : ordered[0]
 }
 
-export interface OccurrenceRange {
+interface OccurrenceRange {
   start: DateTime
   end: DateTime
 }

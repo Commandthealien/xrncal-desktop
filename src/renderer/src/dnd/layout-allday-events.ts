@@ -1,7 +1,7 @@
 import { DateTime } from 'luxon'
 import type { ExpandedOccurrence } from '@shared/event-model'
 
-export interface AllDayBarLayout {
+interface AllDayBarLayout {
   occ: ExpandedOccurrence
   /** 0-6 index into the week, clamped to the visible week. */
   startCol: number

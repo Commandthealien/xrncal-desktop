@@ -26,7 +26,7 @@ export const LOCAL_ACCOUNT_ID = 'account-local-primary'
 const HOLIDAY_NAMES = new Set<string>(Object.values(HOLIDAY_CALENDAR_META).map((meta) => meta.name))
 
 /** Holiday subscriptions are local calendars recognised by name, as HolidayCalendarToggle does. */
-export function isHolidayCalendar(cal: Calendar): boolean {
+function isHolidayCalendar(cal: Calendar): boolean {
   return HOLIDAY_NAMES.has(cal.name)
 }
 

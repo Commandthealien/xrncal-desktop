@@ -9,7 +9,7 @@
  */
 
 /** Options are plain values unless the caller can say which are unselectable. */
-export type DisabledPredicate<T> = (item: T) => boolean
+type DisabledPredicate<T> = (item: T) => boolean
 
 const never = (): boolean => false
 

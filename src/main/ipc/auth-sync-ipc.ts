@@ -19,7 +19,7 @@ export function getSyncWorker(): SyncWorker | null {
   return syncWorkerInstance
 }
 
-export function initSyncAndReminders(
+function initSyncAndReminders(
   googleClientId?: string,
   googleClientSecret?: string,
   msClientId?: string,

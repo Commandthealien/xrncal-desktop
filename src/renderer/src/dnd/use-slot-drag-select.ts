@@ -5,7 +5,7 @@ import { formatClockTimeStr, type TimeFormatPref } from '@shared/time-format'
 import { useDisplayPreferences } from '../context/DisplayPreferencesContext'
 import { atClockMinutes } from '@shared/clock-minutes'
 
-export interface SlotDragPreview {
+interface SlotDragPreview {
   dayKey: string
   topPos: number
   height: number
