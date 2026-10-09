@@ -145,8 +145,8 @@ export function parseIcsContent(icsContent: string, targetCalendarId: string): P
         rrule: rruleString,
         exdate: exdateString
       })
-    } catch (veventErr) {
-      console.warn('Skipping malformed VEVENT:', veventErr)
+    } catch {
+      // A malformed VEVENT is skipped; the rest of the file still imports.
     }
   }
 

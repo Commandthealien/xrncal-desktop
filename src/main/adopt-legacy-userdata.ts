@@ -43,10 +43,8 @@ export function adoptLegacyUserData(userDataDir: string, dbName = 'xrncal.sqlite
     const legacyEnv = join(legacyDir, LEGACY_ENV_NAME)
     if (existsSync(legacyEnv)) copyFileSync(legacyEnv, join(userDataDir, 'xrncal.env'))
 
-    console.log(`Adopted calendar data from previous install at ${legacyDir}`)
     return true
-  } catch (err) {
-    console.error('Could not adopt data from the previous install:', err)
+  } catch {
     return false
   } finally {
     try {

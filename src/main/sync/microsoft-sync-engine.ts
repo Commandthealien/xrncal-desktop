@@ -110,12 +110,7 @@ export class MicrosoftSyncEngine {
       // nextLink is an absolute URL carrying its own paging state.
       nextUrl = data['@odata.nextLink']
       if (!nextUrl) break
-      if (++pages >= MAX_SYNC_PAGES) {
-        console.warn(
-          `Microsoft pull for ${calendarId} stopped at ${MAX_SYNC_PAGES} pages; remaining events follow next sync`
-        )
-        break
-      }
+      if (++pages >= MAX_SYNC_PAGES) break
     }
 
     return { pulledCount }
@@ -270,12 +265,10 @@ export class MicrosoftSyncEngine {
             this.db.prepare('DELETE FROM events WHERE id = ?').run(row.id)
             pushedCount++
           } else if (delRes.status === 412) {
-            console.warn(`Conflict deleting event ${row.id}: ETag precondition failed (412)`)
             this.db.prepare('UPDATE events SET has_conflict = 1 WHERE id = ?').run(row.id)
             errorCount++
           } else {
             const detail = await describeHttpFailure(delRes)
-            console.error(`Failed to delete Microsoft event ${row.id}: ${detail}`)
             lastError = detail
             errorCount++
           }
@@ -333,18 +326,15 @@ export class MicrosoftSyncEngine {
               .run(resJson.id || eventId, resJson['@odata.etag'] || row.etag, now, row.id)
             pushedCount++
           } else if (res.status === 412) {
-            console.warn(`ETag conflict on Microsoft event ${row.id}`)
             this.db.prepare('UPDATE events SET has_conflict = 1 WHERE id = ?').run(row.id)
             errorCount++
           } else {
             const detail = await describeHttpFailure(res)
-            console.error(`Failed to push Microsoft event ${row.id}: ${detail}`)
             lastError = detail
             errorCount++
           }
         }
       } catch (err) {
-        console.error(`Failed to push Microsoft event ${row.id}:`, err)
         lastError = err instanceof Error ? err.message : String(err)
         errorCount++
       }
@@ -428,11 +418,9 @@ export class MicrosoftSyncEngine {
           this.eventsRepo.markExceptionSynced(exception.id, instanceId, null)
           pushedCount++
         } else {
-          console.warn(`Failed to push occurrence override ${exception.id}: HTTP ${res.status}`)
           errorCount++
         }
-      } catch (err) {
-        console.error(`Failed to push occurrence override ${exception.id}:`, err)
+      } catch {
         errorCount++
       }
     }
@@ -520,13 +508,11 @@ export class MicrosoftSyncEngine {
               this.syncStateRepo.recordSuccess(calId, pullRes.pulledCount)
             }
           } catch (calErr: any) {
-            console.error(`Microsoft sync failed for calendar ${calId}:`, calErr)
             this.syncStateRepo.recordFailure(calId, calErr)
             totalErrors++
           }
         }
-      } catch (err: any) {
-        console.error(`Microsoft sync failed for account ${acc.id}:`, err)
+      } catch {
         totalErrors++
       }
     }

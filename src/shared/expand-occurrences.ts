@@ -310,8 +310,7 @@ function expandRruleOccurrences(
         }
       }
     }
-  } catch (err) {
-    console.error(`Failed to expand RRULE for event ${event.id}:`, err)
+  } catch {
     // Fallback: return master instance if it overlaps
     if (masterStart <= rangeEnd && masterEnd >= rangeStart) {
       results.push({

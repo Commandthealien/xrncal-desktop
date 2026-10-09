@@ -85,7 +85,6 @@ export class SyncWorker {
   /** Contain an engine-level throw so one provider cannot cancel the others. */
   private engineFailure(provider: string, err: any): SyncResult {
     const message = `${provider} sync failed: ${err?.message || String(err)}`
-    console.error(message)
     return { success: false, pulledCount: 0, pushedCount: 0, errorCount: 1, message }
   }
 

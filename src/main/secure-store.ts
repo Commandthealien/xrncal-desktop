@@ -77,8 +77,7 @@ export class SecureStore {
     try {
       const decrypted = this.decrypt(row.value)
       return JSON.parse(decrypted) as T
-    } catch (err) {
-      console.error(`Failed to decrypt token for account ${accountId}:`, err)
+    } catch {
       return null
     }
   }

@@ -95,8 +95,8 @@ const xrncalApi: XrncalAPI = {
 if (process.contextIsolated) {
   try {
     contextBridge.exposeInMainWorld('xrncal', xrncalApi)
-  } catch (error) {
-    console.error('Failed to expose xrncal API in context bridge:', error)
+  } catch {
+    // Without the bridge the renderer has no window.xrncal and falls back to defaults.
   }
 } else {
   // @ts-expect-error - fallback for non-context-isolated test renderers

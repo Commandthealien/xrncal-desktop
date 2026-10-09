@@ -86,7 +86,6 @@ export function registerIpcHandlers(): void {
       const byteSize = backupDatabaseTo(getDatabase(), result.filePath)
       return { success: true, filePath: result.filePath, byteSize }
     } catch (err: any) {
-      console.error('Database backup failed:', err)
       return { success: false, message: err?.message || String(err) }
     }
   })

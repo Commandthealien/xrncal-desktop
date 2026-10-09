@@ -23,8 +23,7 @@ export class ErrorBoundary extends Component<Props, State> {
     return { hasError: true, error, errorInfo: null }
   }
 
-  public componentDidCatch(error: Error, errorInfo: ErrorInfo) {
-    console.error('Uncaught error in React tree:', error, errorInfo)
+  public componentDidCatch(_error: Error, errorInfo: ErrorInfo) {
     this.setState({ errorInfo })
   }
 

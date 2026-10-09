@@ -68,8 +68,8 @@ export function useTheme() {
             : 0.8,
         bgBlur: settings.themeBlur !== undefined ? settings.themeBlur : 8
       })
-    } catch (err) {
-      console.warn('Failed to load theme settings:', err)
+    } catch {
+      // Keep the default theme.
     }
   }, [])
 

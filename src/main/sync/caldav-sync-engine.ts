@@ -122,8 +122,8 @@ export class CalDavSyncEngine {
               )
             pulledCount++
           }
-        } catch (err) {
-          console.warn(`Failed to parse CalDAV item at ${item.href}:`, err)
+        } catch {
+          // An item that will not parse is skipped; the rest of the calendar still syncs.
         }
       }
     })()
@@ -221,15 +221,13 @@ export class CalDavSyncEngine {
             this.eventsRepo.markExceptionsSyncedForMaster(row.id)
             pushedCount++
           } else if (pushRes.conflict) {
-            console.warn(`ETag conflict on CalDAV event ${row.id}`)
             this.db.prepare('UPDATE events SET has_conflict = 1 WHERE id = ?').run(row.id)
             errorCount++
           } else {
             errorCount++
           }
         }
-      } catch (err) {
-        console.error(`Failed to push CalDAV event ${row.id}:`, err)
+      } catch {
         errorCount++
       }
     }
@@ -267,8 +265,7 @@ export class CalDavSyncEngine {
           const pullRes = await this.pullCalendarEvents(calId, creds)
           totalPulled += pullRes.pulledCount
         }
-      } catch (err: any) {
-        console.error(`CalDAV sync failed for account ${acc.id}:`, err)
+      } catch {
         totalErrors++
       }
     }

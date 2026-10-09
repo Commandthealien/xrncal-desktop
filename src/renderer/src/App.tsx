@@ -171,15 +171,15 @@ export const App: React.FC = () => {
       } else {
         setOccurrences([])
       }
-    } catch (err) {
-      console.error('Failed to load calendars or events:', err)
+    } catch {
+      // Keep the calendars and events already on screen.
     }
 
     if (window.xrncal?.events?.listConflicts) {
       try {
         setConflicts(await window.xrncal.events.listConflicts())
-      } catch (err) {
-        console.error('Failed to load sync conflicts:', err)
+      } catch {
+        // Keep the last known conflicts; the next refresh tries again.
       }
     }
   }, [queryRange.startUtc, queryRange.endUtc])
@@ -371,8 +371,8 @@ export const App: React.FC = () => {
           const plat = await window.xrncal.app.getPlatform()
           setAppVersion(version || '0.1.0')
           setPlatform(plat || 'win32')
-        } catch (err) {
-          console.warn('IPC init failed, using fallbacks:', err)
+        } catch {
+          // Keep the built-in version and platform fallbacks.
         }
       }
 
@@ -393,8 +393,8 @@ export const App: React.FC = () => {
           const loc = settings.locale === 'vi' || settings.locale === 'en' ? settings.locale : 'en'
           if (loc !== i18n.language) await i18n.changeLanguage(loc)
           if (window.xrncal.app?.setLocale) await window.xrncal.app.setLocale(loc)
-        } catch (err) {
-          console.warn('Failed to load settings:', err)
+        } catch {
+          // Keep the defaults already in state.
         }
       }
 

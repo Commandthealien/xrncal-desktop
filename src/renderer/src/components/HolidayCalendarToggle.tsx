@@ -33,8 +33,8 @@ export const HolidayCalendarToggle: React.FC<HolidayCalendarToggleProps> = ({
         await window.xrncal.holidays.subscribe(type)
       }
       onCalendarsChanged()
-    } catch (err) {
-      console.error(`Failed to toggle holiday calendar ${type}:`, err)
+    } catch {
+      // The row keeps showing the state it was in.
     } finally {
       setLoadingType(null)
     }

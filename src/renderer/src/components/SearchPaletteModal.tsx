@@ -63,8 +63,8 @@ export const SearchPaletteModal: React.FC<SearchPaletteModalProps> = ({
         const res = await window.xrncal.events.search(trimmed, 30)
         setResults(res)
         setSelectedIndex(0)
-      } catch (err) {
-        console.error('Search failed:', err)
+      } catch {
+        // Keep the previous results; the next keystroke searches again.
       } finally {
         setIsLoading(false)
       }

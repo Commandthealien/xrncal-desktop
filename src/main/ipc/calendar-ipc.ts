@@ -318,8 +318,7 @@ export function registerCalendarIpcHandlers(): void {
                 uidToEventId.set(ev.uid, created.id)
               }
               importedCount++
-            } catch (evErr) {
-              console.warn('Failed to import single event:', evErr)
+            } catch {
               errorCount++
             }
           }
@@ -332,8 +331,8 @@ export function registerCalendarIpcHandlers(): void {
                   ...ex,
                   masterEventId: masterId
                 })
-              } catch (exErr) {
-                console.warn('Failed to import event exception:', exErr)
+              } catch {
+                // An override that will not import leaves its series without that one change.
               }
             }
           }

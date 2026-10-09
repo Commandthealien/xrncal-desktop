@@ -43,8 +43,8 @@ export function loadCredentialsFile(): void {
           process.env[key] = value
         }
       }
-    } catch (err) {
-      console.warn(`Failed to read credentials file ${file}:`, err)
+    } catch {
+      // An unreadable file is skipped and the next location is tried.
     }
   }
 }

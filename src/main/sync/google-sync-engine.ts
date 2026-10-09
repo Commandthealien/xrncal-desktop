@@ -157,12 +157,7 @@ export class GoogleSyncEngine {
 
       pageToken = data.nextPageToken
       if (!pageToken) break
-      if (++pages >= MAX_SYNC_PAGES) {
-        console.warn(
-          `Google pull for ${calendarId} stopped at ${MAX_SYNC_PAGES} pages; remaining events follow next sync`
-        )
-        break
-      }
+      if (++pages >= MAX_SYNC_PAGES) break
     }
 
     return { pulledCount }
@@ -337,12 +332,10 @@ export class GoogleSyncEngine {
             // Someone edited the event remotely after our last pull. Surface it
             // rather than deleting their change; the row stays out of the push
             // set until the user resolves.
-            console.warn(`Conflict deleting event ${row.id}: ETag precondition failed (412)`)
             this.db.prepare('UPDATE events SET has_conflict = 1 WHERE id = ?').run(row.id)
             errorCount++
           } else {
             const detail = await describeHttpFailure(delRes)
-            console.error(`Failed to delete event ${row.id} on Google: ${detail}`)
             lastError = detail
             errorCount++
           }
@@ -368,15 +361,11 @@ export class GoogleSyncEngine {
               // Already gone from the origin - somebody moved or deleted it
               // there. Clearing the marker lets the normal push decide what to
               // do next rather than retrying a move that can never succeed.
-              console.warn(
-                `Move origin missing for event ${row.id}; continuing as a plain update`
-              )
               this.db
                 .prepare('UPDATE events SET moved_from_calendar_id = NULL WHERE id = ?')
                 .run(row.id)
             } else {
               const detail = await describeHttpFailure(moveRes)
-              console.error(`Failed to move event ${row.id} between calendars: ${detail}`)
               lastError = detail
               errorCount++
               continue
@@ -451,18 +440,15 @@ export class GoogleSyncEngine {
           } else if (putRes.status === 412) {
             // Precondition failed (ETag conflict): preserve local dirty row, surface it
             // as a resolvable conflict instead of retrying (and failing) forever.
-            console.warn(`Conflict on event ${row.id}: ETag precondition failed (412)`)
             this.db.prepare('UPDATE events SET has_conflict = 1 WHERE id = ?').run(row.id)
             errorCount++
           } else {
             const detail = await describeHttpFailure(putRes)
-            console.error(`Failed to push event ${row.id} to Google: ${detail}`)
             lastError = detail
             errorCount++
           }
         }
       } catch (err) {
-        console.error(`Failed to push dirty event ${row.id}:`, err)
         lastError = err instanceof Error ? err.message : String(err)
         errorCount++
       }
@@ -538,13 +524,9 @@ export class GoogleSyncEngine {
           this.eventsRepo.markExceptionSynced(exception.id, instanceId, json?.etag ?? null)
           pushedCount++
         } else {
-          console.warn(
-            `Failed to push occurrence override ${exception.id}: HTTP ${res.status}`
-          )
           errorCount++
         }
-      } catch (err) {
-        console.error(`Failed to push occurrence override ${exception.id}:`, err)
+      } catch {
         errorCount++
       }
     }
@@ -630,13 +612,11 @@ export class GoogleSyncEngine {
               this.syncStateRepo.recordSuccess(calId, pullRes.pulledCount)
             }
           } catch (calErr: any) {
-            console.error(`Google sync failed for calendar ${calId}:`, calErr)
             this.syncStateRepo.recordFailure(calId, calErr)
             totalErrors++
           }
         }
-      } catch (err: any) {
-        console.error(`Sync failed for account ${acc.id}:`, err)
+      } catch {
         totalErrors++
       }
     }

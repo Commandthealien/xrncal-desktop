@@ -123,7 +123,6 @@ export function createSqliteDriver(dbPath: string): ISqliteDatabase {
 
     return driver
   } catch (nodeSqliteErr) {
-    console.warn('node:sqlite not available, falling back to better-sqlite3:', nodeSqliteErr)
 
     // 2. Fallback to better-sqlite3
     try {

@@ -191,8 +191,8 @@ export class EventsRepo {
           now
         )
       }
-    } catch (err) {
-      console.warn('Failed to save attendees:', err)
+    } catch {
+      // Attendees are best-effort: the event itself is already saved.
     }
   }
 

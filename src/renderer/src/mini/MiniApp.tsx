@@ -22,8 +22,8 @@ export const MiniApp: React.FC = () => {
         const res = await window.xrncal.mini.getUpcoming(15)
         setOccurrences(res.occurrences || [])
       }
-    } catch (err) {
-      console.error('Failed to load mini window data:', err)
+    } catch {
+      // The list stays as it was; the next refresh tries again.
     } finally {
       setIsLoading(false)
     }

@@ -88,8 +88,8 @@ export const TitleSuggestInput: React.FC<TitleSuggestInputProps> = ({
         // filtered out: accepting it is how the calendar gets applied.
         setSuggestions(res ?? [])
         setActiveIndex(-1)
-      } catch (err) {
-        if (!cancelled) console.error('Title suggestions failed:', err)
+      } catch {
+        // No suggestions this time; typing is unaffected.
       }
     }, DEBOUNCE_MS)
 

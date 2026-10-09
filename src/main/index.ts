@@ -70,8 +70,6 @@ if (!gotTheLock) {
     mainWindow.webContents.setWindowOpenHandler((details) => {
       if (isSafeExternalUrl(details.url)) {
         shell.openExternal(details.url)
-      } else {
-        console.warn('Blocked window.open for disallowed URL scheme')
       }
       return { action: 'deny' }
     })
@@ -126,8 +124,8 @@ if (!gotTheLock) {
 
     try {
       initDatabase(app.getPath('userData'))
-    } catch (dbErr) {
-      console.error('Failed to initialize database:', dbErr)
+    } catch {
+      // The window still opens; anything that needs the database fails visibly on its own.
     }
 
     registerIpcHandlers()
@@ -136,8 +134,8 @@ if (!gotTheLock) {
     registerMiniIpcHandlers(showMainWindow)
     try {
       setupTray(showMainWindow)
-    } catch (err) {
-      console.warn('System tray initialization skipped or unsupported:', err)
+    } catch {
+      // No system tray on this desktop - the app runs without one.
     }
 
     app.on('activate', () => showMainWindow())
