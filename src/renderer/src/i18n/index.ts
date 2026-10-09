@@ -16,7 +16,6 @@ export const resources = {
         gotIt: 'Got it',
         on: 'ON',
         off: 'OFF',
-        readOnlyShort: 'RO',
         untitled: '(untitled)'
       },
       views: {
@@ -36,8 +35,7 @@ export const resources = {
         openDay: 'Open this day',
         search: 'Search',
         toggleSidebar: 'Toggle sidebar',
-        keyboard: 'Keyboard shortcuts',
-        appearance: 'Appearance'
+        keyboard: 'Keyboard shortcuts'
       },
       ui: {
         selectPlaceholder: 'Select an item…',
@@ -102,7 +100,6 @@ export const resources = {
         backupFailed: 'Backup failed'
       },
       status: {
-        offline: 'Offline mode'
       },
       editor: {
         newEvent: 'New event',
@@ -189,8 +186,7 @@ export const resources = {
         copyThisOnly: 'Copy this occurrence only',
         copyWholeSeries: 'Copy the whole series',
         copyWholeSeriesHint: 'Duplicates every occurrence in the recurrence',
-        copyStandalone: 'Create a standalone event',
-        copyStandaloneHint: 'Creates a single non-recurring event at this time'
+        copyStandalone: 'Create a standalone event'
       },
       holidays: {
         title: 'Holiday calendars',
@@ -452,7 +448,6 @@ export const resources = {
         gotIt: 'Đã hiểu',
         on: 'BẬT',
         off: 'TẮT',
-        readOnlyShort: 'RO',
         untitled: '(không tiêu đề)'
       },
       views: {
@@ -472,8 +467,7 @@ export const resources = {
         openDay: 'Mở ngày này',
         search: 'Tìm kiếm',
         toggleSidebar: 'Thu gọn thanh bên',
-        keyboard: 'Phím tắt',
-        appearance: 'Giao diện nâng cao'
+        keyboard: 'Phím tắt'
       },
       ui: {
         selectPlaceholder: 'Chọn một mục…',
@@ -538,7 +532,6 @@ export const resources = {
         backupFailed: 'Sao lưu thất bại'
       },
       status: {
-        offline: 'Chế độ ngoại tuyến'
       },
       editor: {
         newEvent: 'Sự kiện mới',
@@ -625,8 +618,7 @@ export const resources = {
         copyThisOnly: 'Chỉ sao chép lần này',
         copyWholeSeries: 'Sao chép cả chuỗi lặp lại',
         copyWholeSeriesHint: 'Nhân bản mọi lần lặp trong chuỗi',
-        copyStandalone: 'Tạo sự kiện đơn độc lập',
-        copyStandaloneHint: 'Tạo một sự kiện đơn lẻ không lặp lại tại thời điểm này'
+        copyStandalone: 'Tạo sự kiện đơn độc lập'
       },
       holidays: {
         title: 'Lịch ngày lễ',
