@@ -1,0 +1,109 @@
+# Builds the Windows installer and the Linux AppImage for a version tag and
+# uploads them, with the latest*.yml files the in-app updater reads, to a
+# draft GitHub release. Nothing reaches users until that draft is published.
+#
+# To cut a release: bump "version" in package.json, commit, then
+#   git tag v<version> && git push origin v<version>
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    env:
+      ELECTRON_SKIP_BINARY_DOWNLOAD: '1'
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      # electron-builder names the release after package.json, so a tag that
+      # disagrees with it would publish under the wrong version.
+      - name: Tag matches package.json
+        run: |
+          expected="v$(node -p "require('./package.json').version")"
+          if [ "$GITHUB_REF_NAME" != "$expected" ]; then
+            echo "Tag $GITHUB_REF_NAME does not match package.json ($expected)" >&2
+            exit 1
+          fi
+
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run typecheck
+      - run: npm run test
+
+      # Both packaging jobs upload to this one draft. Left to electron-builder,
+      # two jobs reaching the upload together could each create their own.
+      # `gh release list` shows drafts too, so a re-run reuses the first one.
+      - name: Create the draft release
+        run: |
+          if gh release list --limit 100 --json tagName --jq '.[].tagName' | grep -qx "$GITHUB_REF_NAME"; then
+            echo "Release $GITHUB_REF_NAME already exists"
+          else
+            gh release create "$GITHUB_REF_NAME" --draft --verify-tag --title "$GITHUB_REF_NAME" --generate-notes
+          fi
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  package:
+    needs: verify
+    strategy:
+      matrix:
+        include:
+          - os: windows-latest
+            target: --win --x64
+          - os: ubuntu-latest
+            target: --linux AppImage --x64
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - run: npm ci
+      - run: npm run build
+
+      # Both jobs upload to the same draft, which electron-builder finds by version.
+      #
+      # The Windows installer is signed when signing is set up (see "Code
+      # signing" in docs/deployment-guide.md), and unsigned otherwise - a secret
+      # that does not exist reads as empty, which electron-builder takes as "no
+      # certificate". Either a .pfx certificate (WIN_CSC_LINK, base64, and
+      # WIN_CSC_KEY_PASSWORD) or Azure Trusted Signing (the AZURE_* secrets and
+      # variables); the Linux job ignores both.
+      - name: Package and upload
+        shell: bash
+        run: |
+          signing=()
+          if [ "${{ matrix.os }}" = "windows-latest" ] && [ -n "$AZURE_CLIENT_ID" ]; then
+            signing=(
+              -c.win.azureSignOptions.publisherName="$AZURE_PUBLISHER_NAME"
+              -c.win.azureSignOptions.endpoint="$AZURE_ENDPOINT"
+              -c.win.azureSignOptions.codeSigningAccountName="$AZURE_CODE_SIGNING_ACCOUNT"
+              -c.win.azureSignOptions.certificateProfileName="$AZURE_CERTIFICATE_PROFILE"
+            )
+          fi
+          npx electron-builder ${{ matrix.target }} --publish always "${signing[@]}"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          WIN_CSC_LINK: ${{ secrets.WIN_CSC_LINK }}
+          WIN_CSC_KEY_PASSWORD: ${{ secrets.WIN_CSC_KEY_PASSWORD }}
+          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+          AZURE_PUBLISHER_NAME: ${{ vars.AZURE_PUBLISHER_NAME }}
+          AZURE_ENDPOINT: ${{ vars.AZURE_ENDPOINT }}
+          AZURE_CODE_SIGNING_ACCOUNT: ${{ vars.AZURE_CODE_SIGNING_ACCOUNT }}
+          AZURE_CERTIFICATE_PROFILE: ${{ vars.AZURE_CERTIFICATE_PROFILE }}

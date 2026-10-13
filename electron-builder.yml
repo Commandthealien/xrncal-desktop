@@ -7,6 +7,16 @@ files:
   - out/**/*
   - package.json
 
+# Where installed builds look for updates (src/main/updater.ts). A tagged push
+# runs .github/workflows/release.yml, which uploads the installers and the
+# latest*.yml files electron-updater reads to a draft release; publishing that
+# draft is what ships it.
+publish:
+  provider: github
+  owner: Xernnn
+  repo: xrncal-desktop
+  releaseType: draft
+
 win:
   target:
     - target: nsis
