@@ -49,6 +49,7 @@ Phần lớn app lịch là **client của một dịch vụ**, hoặc là **tab
 - **Giỗ / ngày âm lặp hằng năm** là một loại sự kiện thật sự: bạn khai báo *"12 tháng 8 âm"*, app tự giải ra ngày dương cho **từng năm**, xử lý cả tháng nhuận và tháng thiếu 29 ngày.
 - Google Calendar / Outlook / Apple Calendar không có quy tắc lặp theo lịch âm. Cách duy nhất ở đó là tự tra rồi tạo tay từng năm một — sai một năm là trượt cả chuỗi.
 - Giỗ được **materialize** thành sự kiện thường trong lịch có sync, nên điện thoại và đồng nghiệp vẫn thấy, dù họ không dùng xrncal.
+- Ngày giỗ mới **nhắc bạn từ hôm trước, lúc 09:00** - đủ thời gian sắm lễ - và lời nhắc được đồng bộ sang điện thoại cùng sự kiện.
 
 ### 2. Offline là mặc định, không phải chế độ dự phòng
 
@@ -112,7 +113,7 @@ Năm view đều là component React tự viết, không dùng thư viện lịc
 
 ## Cài đặt
 
-Yêu cầu build: **Node.js 20+** và Git. Chưa có bản release dựng sẵn — hiện tại build từ nguồn.
+Yêu cầu build: **Node.js 20+** và Git. Chưa có bản release dựng sẵn — hiện tại build từ nguồn. Khi đã có release trên GitHub, bản đã cài sẽ tự cập nhật (tắt ở Cài đặt → Chung → *Kiểm tra bản cập nhật*).
 
 ```bash
 git clone https://github.com/Xernnn/xrncal-desktop.git
@@ -189,6 +190,7 @@ Sao lưu bất cứ lúc nào bằng **Settings → Sao lưu cơ sở dữ liệ
 - Kéo-thả, resize mép, quét chọn khoảng giờ
 - Bước snap 15 / 30 / 60 phút
 - Lặp lại: lần này / từ đây trở đi / cả chuỗi
+- `Ctrl+Z` hoàn tác lần di chuyển, đổi độ dài, sao chép hoặc xoá
 - Sự kiện nhiều ngày, cả ngày, số tuần ISO
 - Cột giờ múi thứ hai cho lịch xuyên quốc gia
 
@@ -197,7 +199,7 @@ Sao lưu bất cứ lúc nào bằng **Settings → Sao lưu cơ sở dữ liệ
 
 **Việt Nam & ngôn ngữ**
 - Âm lịch trên Tháng / Tuần / Danh sách
-- Giỗ lặp theo năm âm, xử lý tháng nhuận
+- Giỗ lặp theo năm âm, xử lý tháng nhuận, nhắc trước một ngày
 - Lịch lễ Việt Nam và quốc tế, subscribe 1 cú bấm
 - Giao diện tiếng Việt và English
 
@@ -211,17 +213,22 @@ Sao lưu bất cứ lúc nào bằng **Settings → Sao lưu cơ sở dữ liệ
 - Microsoft 365 / Outlook.com (Graph)
 - CalDAV: Nextcloud, Synology, generic
 - Sửa một lần xuất hiện cũng được đẩy lên đúng
+- Nhắc nhở và danh sách khách đồng bộ hai chiều
+- Trả lời lời mời: Có / Có thể / Không
+- Đăng ký lịch từ bất kỳ liên kết `.ics` / `webcal://`
 - Poll thích ứng: 20s khi đang dùng, 5 phút khi blur
 - Bảng xử lý xung đột 412
+- Sửa sự kiện CalDAV vẫn giữ những gì ứng dụng khác đã lưu
 
 </td>
 <td width="50%" valign="top">
 
 **Chỗ làm việc**
 - Cửa sổ mini luôn-trên-cùng từ khay hệ thống
-- Thông báo nhắc trước giờ (Windows / Linux)
+- Nhắc nhở cho từng sự kiện (kể cả cả ngày), có báo lại và nút Tham gia
 - Theme sáng / tối / theo hệ thống, ảnh nền tuỳ chỉnh
-- Tìm kiếm FTS5, gợi ý tiêu đề từ lịch sử của bạn
+- Tìm kiếm không cần gõ dấu ("hop" ra "họp"), gợi ý tiêu đề từ lịch sử của bạn
+- Mỗi sự kiện có thể có múi giờ và màu riêng
 - Nhập / xuất `.ics`, sao lưu database
 - Gỡ tài khoản mà vẫn giữ lại sự kiện
 
@@ -245,6 +252,7 @@ các sự kiện đang hiển thị; mọi phím còn lại tác động lên s�
 | `Shift+↑` `Shift+↓` | Dời sớm hơn · muộn hơn một bước |
 | `Shift+←` `Shift+→` | Dời lùi · tới một ngày |
 | `Alt+↑` `Alt+↓` | Rút ngắn · kéo dài giờ kết thúc |
+| `Ctrl+Z` | Hoàn tác lần di chuyển, đổi độ dài, sao chép hoặc xoá gần nhất |
 | `N` hoặc `C` | Tạo sự kiện |
 | `Ctrl+K` hoặc `/` | Tìm kiếm |
 | `Ctrl+B` | Ẩn / hiện thanh bên |

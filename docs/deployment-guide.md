@@ -6,7 +6,7 @@
 
 ## Prerequisites
 
-- Node.js 20+ (LTS recommended)
+- Node.js 23.4+ (24 recommended, as CI uses) - the database tests need the built-in `node:sqlite`
 - npm 10+
 - Git
 
@@ -47,12 +47,26 @@ npm run typecheck:web    # Renderer (tsconfig.web.json)
 
 ```bash
 npm run test
-# Runs: vitest run (all 371 tests across 44 files)
+# Runs: vitest run (the whole suite, ~610 tests)
 ```
 
 Test files live in `tests/` at the project root and use `:memory:` SQLite for database tests.
 Main-process tests import a stub `electron` module (`tests/stubs/electron.ts`, aliased in
 `vitest.config.ts`), so the Electron binary is not required to run them.
+
+### UI tests
+
+```bash
+npm run test:e2e
+# Runs: npm run build && playwright test
+```
+
+`e2e/` drives the built app through Playwright's Electron support: it launches
+`out/main/index.js` on a throwaway profile (`XRNCAL_USER_DATA_DIR`, which `src/main/index.ts`
+honours before taking the single-instance lock, so a running copy of xrncal is neither touched
+nor in the way) with `TZ=Asia/Ho_Chi_Minh`, and checks a fresh start, the settings IPC, search
+without diacritics, and an edit in another time zone. These need the real Electron binary and a
+display; on a Linux machine without one, run them under `xvfb-run -a`.
 
 ---
 
@@ -61,12 +75,56 @@ Main-process tests import a stub `electron` module (`tests/stubs/electron.ts`, a
 `.github/workflows/ci.yml` runs on every push to `main` and every pull request:
 
 1. `npm ci` (with `ELECTRON_SKIP_BINARY_DOWNLOAD=1` — CI does not package the app)
-2. `npm run typecheck` — main + renderer
-3. `npm run test` — full Vitest suite
-4. `npm run build` — production bundle
+2. `npm run lint` — ESLint (errors fail; `no-explicit-any` is a warning)
+3. `npm run typecheck` — main + renderer
+4. `npm run test` — full Vitest suite
+5. `npm run build` — production bundle
 
-Packaging (`pack:win` / `pack:linux`) is not run in CI; build those on the target OS
-or a dedicated release runner.
+A second job, `ui`, installs Electron and runs `xvfb-run -a npm run test:e2e`.
+
+---
+
+## Releases and In-App Updates
+
+`.github/workflows/release.yml` runs on a pushed `v*` tag:
+
+1. Checks the tag equals `v` + `package.json`'s `version` (electron-builder names the release
+   after `package.json`, so a mismatch would publish under the wrong version).
+2. Lint, typecheck and tests.
+3. On `windows-latest` and `ubuntu-latest`: `npm run build`, then
+   `electron-builder --publish always`, which uploads the NSIS installer, the AppImage and the
+   `latest.yml` / `latest-linux.yml` files to a **draft** release (`publish` in
+   `electron-builder.yml`, authenticated by the workflow's `GITHUB_TOKEN`).
+
+To ship:
+
+```bash
+npm version 0.2.0 --no-git-tag-version   # or edit package.json by hand
+git commit -am "chore: release 0.2.0"
+git tag v0.2.0 && git push origin main v0.2.0
+# then review and publish the draft on GitHub
+```
+
+Installed builds check the published releases every six hours (`src/main/updater.ts`), download
+a newer one in the background and install it when the app quits. Only packaged builds update, and
+on Linux only the AppImage; the **Check for updates** setting turns it off.
+
+### Code signing
+
+Unsigned, the Windows installer makes SmartScreen ask before the first run, and nothing ties an
+update to its publisher. The release workflow signs it as soon as one of these is set up in the
+repository's **Settings → Secrets and variables → Actions** (until then it builds unsigned):
+
+- **Azure Trusted Signing** (Microsoft's signing service; the usual choice now that new
+  certificates come on hardware or cloud keys rather than as files). Create a Trusted Signing
+  account and certificate profile, and an app registration with the *Trusted Signing Certificate
+  Profile Signer* role. Secrets: `AZURE_TENANT_ID`, `AZURE_CLIENT_ID`, `AZURE_CLIENT_SECRET`.
+  Variables: `AZURE_PUBLISHER_NAME` (the certificate's subject CN), `AZURE_ENDPOINT` (e.g.
+  `https://eus.codesigning.azure.net`), `AZURE_CODE_SIGNING_ACCOUNT`, `AZURE_CERTIFICATE_PROFILE`.
+- **A `.pfx` certificate**: `WIN_CSC_LINK` (the file, base64-encoded) and `WIN_CSC_KEY_PASSWORD`.
+
+Once releases are signed, electron-updater checks each Windows update against the publisher name
+before installing it. The AppImage is not signed.
 
 ---
 
@@ -94,7 +152,7 @@ npm run pack:win
 
 Requirements:
 - Run on Windows or use a CI Windows runner.
-- Code signing optional for personal use; required for public distribution (no SmartScreen warning).
+- Unsigned when built locally; see [Code signing](#code-signing) for signed release builds.
 
 ### Linux (AppImage x64)
 
@@ -116,13 +174,14 @@ chmod +x xrncal-*.AppImage
 
 ## electron-builder Configuration
 
-See [`electron-builder.yml`](file:///c:/Users/minhlong/Desktop/projects/xrncal/electron-builder.yml) at the project root. Key settings:
+See [`electron-builder.yml`](../electron-builder.yml) at the project root. Key settings:
 
-- `appId`: `com.xrncal.app`
+- `appId`: `app.xrncal.desktop`
 - `productName`: `xrncal`
 - `nsis.oneClick`: false (installer shows options)
-- `linux.category`: `Office`
+- `linux.category`: `Office;Calendar;`
 - `linux.target`: AppImage
+- `publish`: GitHub, `Xernnn/xrncal-desktop`, as a draft release (see Releases above)
 
 ---
 

@@ -49,6 +49,7 @@ This is the reason the app exists.
 - **Giỗ / anniversaries that repeat by the lunar year** are a real event type. You declare *"the 12th day of the 8th lunar month"* and the app resolves the Gregorian date for **each year**, handling leap months and short 29-day months.
 - Google Calendar, Outlook and Apple Calendar have no lunar recurrence rule at all. There, the only option is to look each year up and create it by hand — miss one and the whole series drifts.
 - Those anniversaries are **materialised** into an ordinary event in a synced calendar, so your phone and your colleagues still see them even though they don't run xrncal.
+- A new anniversary **reminds you the day before at 09:00** - enough notice to buy the offerings - and the reminder syncs to your phone with it.
 
 ### 2. Offline is the default, not a degraded mode
 
@@ -112,7 +113,7 @@ All five views are React components written for this app, with no third-party ca
 
 ## Install
 
-To build you need **Node.js 20+** and Git. There are no prebuilt releases yet — build from source.
+To build you need **Node.js 20+** and Git. There are no prebuilt releases yet — build from source. Once releases are published on GitHub, installed builds update themselves (Settings → General → *Check for updates* turns that off).
 
 ```bash
 git clone https://github.com/Xernnn/xrncal-desktop.git
@@ -189,6 +190,7 @@ Back it up at any time from **Settings → Back up database**, which writes a pl
 - Drag and drop, edge resize, drag-select a range
 - Snap step of 15 / 30 / 60 minutes
 - Recurring edits: this one / this and future / all
+- `Ctrl+Z` undoes a move, resize, copy or delete
 - Multi-day and all-day events, ISO week numbers
 - A second timezone gutter for cross-border schedules
 
@@ -197,7 +199,7 @@ Back it up at any time from **Settings → Back up database**, which writes a pl
 
 **Vietnam & languages**
 - Lunar dates in Month / Week / List
-- Anniversaries recurring by lunar year, leap months handled
+- Anniversaries recurring by lunar year, leap months handled, with a reminder the day before
 - Vietnamese and international holiday calendars, one click
 - Interface in Vietnamese and English
 
@@ -211,17 +213,22 @@ Back it up at any time from **Settings → Back up database**, which writes a pl
 - Microsoft 365 / Outlook.com (Graph)
 - CalDAV: Nextcloud, Synology, generic
 - Single-occurrence edits push correctly too
+- Reminders and guest lists sync both ways
+- Reply Yes / Maybe / No to invitations
+- Subscribe to any `.ics` / `webcal://` link
 - Adaptive polling: 20s while focused, 5m in the tray
 - A resolution screen for 412 conflicts
+- CalDAV edits keep what other apps stored on the event
 
 </td>
 <td width="50%" valign="top">
 
 **Workspace**
 - Always-on-top mini window from the tray
-- Reminder notifications (Windows / Linux)
+- Reminders per event (all-day ones too), with snooze and a Join button
 - Light / dark / system theme, custom wallpaper
-- FTS5 search, title suggestions from your own history
+- Search that ignores accents ("hop" finds "họp"), title suggestions from your own history
+- Each event can keep its own time zone and colour
 - `.ics` import and export, database backup
 - Detach a provider and keep every event it brought
 
@@ -245,6 +252,7 @@ events on screen; everything else acts on whichever one it is sitting on.
 | `Shift+↑` `Shift+↓` | Move it earlier · later by one snap step |
 | `Shift+←` `Shift+→` | Move it a day back · forward |
 | `Alt+↑` `Alt+↓` | Shorten · lengthen its end |
+| `Ctrl+Z` | Undo the last move, resize, copy or delete |
 | `N` or `C` | New event |
 | `Ctrl+K` or `/` | Search |
 | `Ctrl+B` | Show or hide the sidebar |

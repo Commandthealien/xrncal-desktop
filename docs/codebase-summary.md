@@ -1,8 +1,8 @@
 # xrncal — Codebase Summary
 
-**Last updated:** 2026-08-31  
+**Last updated:** 2026-10-11  
 **Version:** 0.1.0  
-**Build status:** All 10 phases complete, 371/371 tests passing, 0 TypeScript errors, clean production build. CI (`.github/workflows/ci.yml`) runs typecheck + tests + build on every push and PR.
+**Build status:** 539 tests in 62 files passing, 0 TypeScript errors, 0 lint errors, clean production build. CI (`.github/workflows/ci.yml`) runs lint + typecheck + tests + build on every push and PR; a `v*` tag runs `.github/workflows/release.yml`.
 
 ---
 
@@ -16,17 +16,21 @@ xrncal/
 │   │   ├── ipc.ts               # Central IPC handler registration
 │   │   ├── ipc/                 # IPC handler modules
 │   │   │   ├── auth-sync-ipc.ts # OAuth connect/disconnect + sync trigger handlers
-│   │   │   ├── calendar-ipc.ts  # Calendar + event + ICS IPC handlers
+│   │   │   ├── calendar-ipc.ts  # Calendar + event (incl. reply, restore) + ICS IPC handlers
 │   │   │   ├── holiday-ipc.ts   # Holiday subscription IPC handlers
+│   │   │   ├── reminders-ipc.ts # Active reminders: list, dismiss, snooze (registered from index.ts)
 │   │   │   ├── settings-ipc.ts  # Settings get/set IPC handlers
-│   │   │   └── tasks-ipc.ts     # Task CRUD IPC handlers
+│   │   │   └── subscriptions-ipc.ts # Calendars subscribed to by .ics / webcal link
 │   │   ├── db/                  # Database layer
-│   │   │   ├── database.ts      # initDatabase, runMigrations, seedDefaultData
+│   │   │   ├── database.ts      # initDatabase, runMigrations (inline 001-021), seedDefaultData
 │   │   │   ├── sqlite-driver.ts # ISqliteDatabase abstraction (node:sqlite / better-sqlite3)
-│   │   │   ├── migrations/      # SQL migration files (001-init, 002-fts-attendees, 003-tasks)
-│   │   │   └── repos/           # Repository classes (calendars, events, settings, tasks)
+│   │   │   ├── backup.ts        # VACUUM INTO snapshot for Settings → Back up database
+│   │   │   ├── migrations/      # Reference copies of the inline migrations (001-021)
+│   │   │   └── repos/           # calendars, events, settings, sync-state, detach-account
+│   │   ├── holidays/            # Generated holiday calendars, extended at startup
+│   │   ├── subscriptions/       # ics-subscription.ts: fetch, store and refresh feeds
 │   │   ├── sync/                # Provider sync engines
-│   │   │   ├── sync-worker.ts   # SyncWorker: poll loop, adaptive interval (60s focus / 5m blur)
+│   │   │   ├── sync-worker.ts   # SyncWorker: poll loop, adaptive interval (20s focus / 5m blur)
 │   │   │   ├── google-sync-engine.ts    # Google Calendar API v3 two-way sync
 │   │   │   ├── google-event-mapper.ts   # Google event JSON ↔ canonical CalendarEvent
 │   │   │   ├── microsoft-sync-engine.ts # Microsoft Graph two-way sync
@@ -40,11 +44,11 @@ xrncal/
 │   │   │   └── write-ics.ts     # Canonical events → RFC 5545 ICS file
 │   │   ├── oauth/               # OAuth flows
 │   │   ├── notifications/
-│   │   │   └── reminder-scheduler.ts # OS notification scheduling (Windows + Linux)
+│   │   │   └── reminder-scheduler.ts # Rings reminders; keeps the active list snooze/join act on
 │   │   ├── mini-window.ts       # Frameless companion mini window
 │   │   ├── tray.ts              # System tray icon and context menu
-│   │   ├── secure-store.ts      # safeStorage wrapper for OAuth tokens and CalDAV credentials
-│   │   └── types/               # Third-party type stubs (ical.js)
+│   │   ├── updater.ts           # electron-updater against GitHub releases (packaged builds only)
+│   │   └── secure-store.ts      # safeStorage wrapper for OAuth tokens and CalDAV credentials
 │   ├── preload/
 │   │   ├── index.ts             # contextBridge: exposes window.xrncal API (XrncalAPI typed)
 │   │   └── index.d.ts           # TypeScript declarations for preload
@@ -73,18 +77,22 @@ xrncal/
 │   │       │   ├── WeekNumber.tsx
 │   │       │   ├── ResizeTimeTooltip.tsx
 │   │       │   ├── SyncConflictsModal.tsx
+│   │       │   ├── ReminderStack.tsx    # Rung reminders: join, open, snooze, dismiss
 │   │       │   ├── HolidayCalendarToggle.tsx   # Used by the accounts dialog's holidays page
 │   │       │   ├── KeyboardShortcutsModal.tsx
 │   │       │   ├── SearchPaletteModal.tsx
 │   │       │   └── ErrorBoundary.tsx
-│   │       ├── editor/          # EventEditorDialog, RecurringScopeDialog, TitleSuggestInput
+│   │       ├── editor/          # EventEditorDialog, RecurringScopeDialog, TitleSuggestInput, ReminderListField
 │   │       ├── dnd/             # Drag and drop: use-event-dnd.ts, drop-target.ts, DropActionPopover.tsx
 │   │       ├── mini/            # MiniApp.tsx (companion window renderer)
-│   │       ├── hooks/           # use-theme.ts, use-visible-range.ts
+│   │       ├── hooks/           # use-theme.ts, use-visible-range.ts, use-wheel-navigation.ts
+│   │       ├── lib/             # account-display, roving-index, wheel-navigation, reminder-labels
 │   │       ├── i18n/            # i18next setup, vi/en translation strings
 │   │       └── styles/          # index.css: design tokens, Tailwind layers
 │   └── shared/                  # Shared contracts (used by both main and renderer)
 │       ├── event-model.ts       # CalendarAccount, Calendar, CalendarEvent, ExpandedOccurrence, etc.
+│       ├── reminders.ts         # Reminder lists: defaults, due times, wording, per-provider merge
+│       ├── keyboard-nav.ts      # Keyboard cursor, nudge and resize maths
 │       ├── all-day.ts           # Floating-date vs instant: inclusive/exclusive ends, day keys
 │       ├── occurrence-order.ts  # Within-day ordering (all-day first, then by time)
 │       ├── title-suggestions.ts # Ranking for the event-title autocomplete
@@ -99,7 +107,7 @@ xrncal/
 │       ├── mini-calendar-grid.ts # Grid computation utilities
 │       ├── visible-range.ts     # Visible date range helpers
 │       └── ipc-contract.ts      # IPC_CHANNELS constants and XrncalAPI interface
-├── tests/                       # Vitest unit tests (371 tests / 44 files)
+├── tests/                       # Vitest unit tests (539 tests / 62 files)
 │   └── stubs/electron.ts        # `electron` module stub for main-process tests
 └── docs/
     ├── urd.md                   # User Requirements Document
@@ -120,17 +128,20 @@ xrncal/
 |----------|----------------|
 | `index.ts` | App lifecycle, single-instance lock, window creation, focus/blur → adaptive sync |
 | `ipc.ts` | Registers all IPC handler groups on startup |
-| `ipc/` | Five handler modules: auth+sync, calendar+event+ICS, settings, tasks, holidays |
+| `ipc/` | Handler modules: auth+sync, calendar+event+ICS, settings, holidays, subscriptions, reminders |
 | `db/database.ts` | `initDatabase()`, `runMigrations()`, `seedDefaultData()` |
 | `db/sqlite-driver.ts` | `ISqliteDatabase` abstraction over `node:sqlite` / `better-sqlite3` |
-| `db/repos/` | Repository pattern: CalendarsRepo, EventsRepo, SettingsRepo, TasksRepo |
-| `sync/sync-worker.ts` | Poll loop; 60s interval on window focus, 5m when blurred |
-| `sync/*-sync-engine.ts` | Google, Microsoft Graph, CalDAV two-way sync engines |
+| `db/repos/` | Repository pattern: CalendarsRepo, EventsRepo, SettingsRepo, SyncStateRepo, detachAccount |
+| `sync/sync-worker.ts` | Poll loop; 20s interval on window focus, 5m when blurred; also refreshes due subscriptions |
+| `sync/*-sync-engine.ts` | Google, Microsoft Graph, CalDAV two-way sync: events, reminders, guest lists, replies |
+| `subscriptions/ics-subscription.ts` | Read-only calendars fed from an .ics / webcal link, refreshed every 6 h |
+| `holidays/holiday-subscription.ts` | Generated holiday calendars; `refreshHolidayCalendars()` extends them at startup |
+| `updater.ts` | Downloads new releases in the background and installs them on quit; follows `checkForUpdates` |
 | `ics/` | ICS file import (ical.js) and export (RFC 5545 writer) |
 | `secure-store.ts` | `safeStorage` wrapper; fail-closed on Linux if keyring unavailable |
 | `mini-window.ts` | Frameless 380×520 companion window; always-on-top toggle |
 | `tray.ts` | System tray icon, context menu, single-click toggle |
-| `notifications/reminder-scheduler.ts` | Polls upcoming events; fires OS notifications |
+| `notifications/reminder-scheduler.ts` | Rings each occurrence's reminders (per-event list, else the defaults); keeps rung reminders for snooze / join until dismissed |
 
 ### `src/preload`
 
@@ -140,16 +151,17 @@ xrncal/
 
 | Namespace | Methods |
 |-----------|---------|
-| `app` | `getVersion`, `getLocale`, `setLocale`, `getPlatform` |
+| `app` | `getVersion`, `getLocale`, `setLocale`, `getPlatform`, `pickBackgroundImage`, `backupDatabase` |
 | `settings` | `getAll`, `get`, `set` |
-| `auth` | `connectGoogle`, `disconnectGoogle`, `connectMicrosoft`, `disconnectMicrosoft`, `connectCalDav`, `disconnectCalDav`, `listAccounts` |
-| `sync` | `triggerNow`, `getStatus` |
+| `auth` | `connectGoogle`, `disconnectGoogle`, `connectMicrosoft`, `disconnectMicrosoft`, `connectCalDav`, `disconnectCalDav`, `listAccounts`, `detachAccount` |
+| `sync` | `triggerNow`, `getStatus`, `onChanged` |
+| `reminders` | `listActive`, `dismiss`, `snooze`, `onChanged` |
 | `calendars` | `list`, `create`, `update`, `delete` |
-| `events` | `queryRange`, `getById`, `create`, `update`, `delete`, `move`, `copy`, `updateScope`, `deleteScope`, `upsertException`, `search`, `shareIcs` |
+| `events` | `queryRange`, `getById`, `create`, `update`, `delete`, `move`, `copy`, `updateScope`, `deleteScope`, `upsertException`, `materializeLunar`, `detachLunar`, `search`, `suggestTitles`, `shareIcs`, `listConflicts`, `resolveConflict`, `respond`, `restore` |
 | `ics` | `importIcs`, `exportIcs` |
-| `tasks` | `list`, `create`, `update`, `toggle`, `delete` |
 | `mini` | `openMain`, `toggle`, `getUpcoming`, `setAlwaysOnTop` |
 | `holidays` | `subscribe`, `unsubscribe` |
+| `subscriptions` | `add`, `refresh` |
 
 ### `src/renderer` (React App)
 
@@ -162,13 +174,15 @@ Entry: `main.tsx` detects `#mini` URL hash to route to `MiniApp` (companion widg
   resize), period navigation (`T`, `←`/`K`, `→`/`J`), views (`1`–`5`, `D`/`W`/`M`/`Y`/`L`) and
   actions (`N`/`C`, `Ctrl+K`//, `Ctrl+B`, `R`, `,`, `?`/`F1`, `Esc`). Cursor maths lives in
   `src/shared/keyboard-nav.ts`; the ring is `.gc-event.is-key-selected`.
+- An undo stack: every move, resize, copy and delete pushes its inverse, and `Ctrl+Z` runs the
+  latest. A delete is undone from a snapshot taken before it (`events.restore`), because a synced
+  deletion is pushed within seconds and the row is gone after that.
 - The event editor is keyboard-complete too: `Ctrl+Enter` saves, `Ctrl+⌫` deletes, `Enter` in the
   title saves outright, and `CustomSelect` / `DatePicker` / `TimePicker` each drive their portalled
   popover with a roving index (`src/renderer/src/lib/roving-index.ts`, `.gc-option-active`) because
   a portal at the end of `<body>` can never be tabbed into. Keyboard focus is `.gc-focus-ring`.
-- Sidebar tabs (Calendar vs Tasks)
 - Theme background layer and the `SettingsPanel` drawer
-- Holiday toggle in sidebar
+- `ReminderStack`, the in-app half of reminders (Linux notifications cannot carry buttons)
 
 **Views:** All five calendar layouts are custom React components with no third-party calendar shell.
 
@@ -198,85 +212,61 @@ for display in `timed-event-segments.ts`.
 
 TypeScript contracts shared between main and renderer via `@shared/*` path alias. Contains no runtime DOM or Node.js dependencies.
 
-Key types: `CalendarEvent`, `ExpandedOccurrence`, `Calendar`, `CalendarAccount`, `TaskItem`, `XrncalAPI`, `IPC_CHANNELS`.
+Key types: `CalendarEvent`, `ExpandedOccurrence`, `Calendar`, `CalendarAccount`, `EventReminder`, `Attendee`, `ActiveReminder`, `XrncalAPI`, `IPC_CHANNELS`.
 
 ---
 
-## Database Schema (3 migrations)
+## Database Schema (17 migrations)
 
-**Migration 001 — Core:**
-- `accounts` — provider accounts (local, google, graph, caldav)
-- `calendars` — per-account calendars with visibility and color
-- `events` — full event data including RRULE, attendees JSON, etag, dirty flag
-- `event_exceptions` — VEVENT EXDATE overrides for recurring events
-- `sync_state` — per-account/calendar sync tokens and last-sync timestamps
-- `settings` — key/value settings store
+Applied by `runMigrations()` from the inline constants in `src/main/db/database.ts`; the files in
+`src/main/db/migrations/` are reference copies.
 
-**Migration 002 — FTS + Attendees:**
-- `attendees` — normalized attendee rows (email, displayName, responseStatus)
-- `events_fts` — FTS5 virtual table over title, notes, location (auto-maintained via triggers)
-
-**Migration 003 — Tasks:**
-- `tasks` — local tasks (title, due_date, completed, show_on_calendar)
-
----
+| # | What it added or fixed |
+|---|---|
+| 001 | `accounts`, `calendars`, `events`, `event_exceptions`, `sync_state`, `settings` |
+| 002 | `attendees` rows and the `events_fts` FTS5 index (kept by triggers) |
+| 003 / 005 | Local `tasks`, later dropped |
+| 004 | `lunar_rule` and `lunar_source_event_id` for lunar anniversaries |
+| 006 | `has_conflict` for 412s awaiting the user |
+| 007 | Push tracking on `event_exceptions` (`dirty`, `etag`, `provider_instance_id`) |
+| 008 | `sync_state` rebuilt keyed on `calendar_id` |
+| 009 | UNIQUE index on `(master_event_id, original_start_utc)` |
+| 010 / 011 | All-day end repair; per-occurrence `all_day` |
+| 012 | `color_is_custom`: a picked colour survives sync |
+| 013 | `moved_from_calendar_id` for provider-side moves |
+| 014 | `provider_event_id`: the local `id` never changes |
+| 015 | `events.reminders`, `calendars.default_reminders` (JSON; NULL = the default) |
+| 016 | `attendees.is_self`, `events.rsvp_pending`, `events.attendees_synced` |
+| 017 | `calendars.subscription_url`, `subscription_refreshed_at` |
+| 018 | `reminder_log` (reminders that rang survive a restart), `attendees.role` (optional guests, rooms) |
+| 019 | `events_fts` rebuilt as an external-content index by rowid: 002's contentless one never matched and scanned itself on every update |
+| 020 | `event_sources`: the CalDAV server's copy of each event, so an edit here keeps what other clients stored (`merge-ics.ts`) |
+| 021 | `reminder_state`: reminder cards on screen and snoozes survive a restart |
 
 ## Test Coverage
 
+Tests live in `tests/`, one file per module or behaviour - `ls tests` is the index. The ones
+added with reminders, invitation replies, subscriptions and undo:
+
 ```
 tests/
-├── lunar-vietnam.test.ts          # Lunar ↔ solar conversion accuracy
-├── expand-occurrences.test.ts     # RRULE expansion correctness
-├── daylight-saving.test.ts        # A series keeps its clock time across a DST change
-├── recurring-scope.test.ts        # this / this-and-future / all scope edits, and moving between calendars
-├── occurrence-all-day-override.test.ts # Per-occurrence all-day detach (drag onto the hour grid)
-├── occurrence-order.test.ts       # Within-day ordering: all-day first, then by time
-├── title-suggestions.test.ts      # Title autocomplete ranking: frequency, recency, time and day fit
-├── title-samples-repo.test.ts     # Which rows reach that ranking
-├── copy-instance.test.ts          # Recurring single-instance copy
-├── event-copy-uid.test.ts         # UID handling on event copy
-├── all-day-end.test.ts            # Provider exclusive end ↔ app inclusive end
-├── all-day-covers-date.test.ts    # Which days a multi-day all-day event marks
-├── layout-allday-events.test.ts   # All-day lane layout (integer day arithmetic)
-├── ics-roundtrip.test.ts          # ical.js import + RFC 5545 export round-trips
-├── database-repos.test.ts         # SQLite calendars / events / settings repos
-├── migration-007.test.ts          # Migration SQL applied directly, not by rewinding
-├── provider-event-id.test.ts      # The local id never changes when a provider assigns its own
-├── exception-upsert.test.ts       # event_exceptions upsert needs its UNIQUE index
-├── exception-sync.test.ts         # Occurrence exceptions push to Google / Graph
-├── calendar-color-ownership.test.ts # A local colour edit touches one calendar only
-├── detach-account.test.ts         # Detach keeps calendars, events and exceptions
-├── backup.test.ts                 # VACUUM INTO snapshot, WAL-safe
-├── fts-search.test.ts             # FTS5 search over cached events
-├── google-event-mapper.test.ts    # Google → canonical mapping
-├── microsoft-event-mapper.test.ts # Graph → canonical mapping
-├── graph-recurrence-map.test.ts   # Graph recurrence ↔ RRULE
-├── sync-pagination.test.ts        # nextPageToken / @odata.nextLink paging
-├── http-timeout.test.ts           # fetchWithTimeout aborts a stalled request; failures describe themselves
-├── push-event-id.test.ts          # Outgoing payloads never carry our local event id
-├── caldav-discover-url.test.ts    # RFC 6764 server discovery
-├── secure-store.test.ts           # safeStorage fail-closed behavior
-├── external-url-guard.test.ts     # will-navigate / window-open guards
-├── holiday-calendars.test.ts      # Holiday generation and lunar-to-solar
-├── visible-range.test.ts          # Date range utilities
-├── mini-calendar-grid.test.ts     # Mini-window month grid computation
-├── timed-event-segments.test.ts   # Multi-day timed occurrence splitting
-├── drop-target.test.ts            # DnD drop target math, incl. all-day dropped onto the hour grid (renderer)
-├── resize-math.test.ts            # Event edge-resize math and the snap-step setting (renderer)
-├── ui-components.test.ts          # UI primitive + editor SSR smoke (renderer)
-├── i18n-parity.test.ts            # vi and en keep the same key set
-├── stale-event-error.test.ts      # Detecting an event re-keyed by a sync (renderer)
-├── friendly-error.test.ts         # Error toasts and their copy action (renderer)
-├── time-picker-slots.test.ts      # End-time list wrapping past midnight, and the date roll
-└── ipc-contract.test.ts           # IPC channel and API surface contract
+├── reminders.test.ts              # Reminder lists: defaults, due times, wording, provider merge
+├── reminder-sync.test.ts          # Reminders through the Google, Graph and iCalendar mappings
+├── reminder-scheduler.test.ts     # What rings when; snooze, dismiss, all-day, notification click
+├── invite-replies.test.ts         # Guest lists from each provider, replies, and no blind pushes
+├── graph-pull.test.ts             # Microsoft: etag skip, prune on full listing, incremental filter
+├── ics-subscription.test.ts       # Feeds: webcal, stable ids, unchanged-feed skip, due refresh
+├── holiday-refresh.test.ts        # Holiday calendars extended as the years pass
+└── undo-restore.test.ts           # Bringing a deleted event back, before and after its push
 ```
 
-**Total: 371 tests across 44 files. All passing.**
+**Total: 539 tests across 62 files. All passing.**
 
 Main-process tests run in plain Node; the `electron` module is aliased to
 `tests/stubs/electron.ts` in `vitest.config.ts` so they do not need the Electron
-binary. Renderer-touching tests (`drop-target`, `resize-math`, `ui-components`)
-are typechecked under `tsconfig.web.json`; all others under `tsconfig.node.json`.
+binary. Renderer-touching tests (`drop-target`, `resize-math`, `ui-components` and the others
+listed in `tsconfig.web.json`'s `include`) are typechecked there; all others under
+`tsconfig.node.json`.
 
 ---
 
@@ -293,4 +283,6 @@ are typechecked under `tsconfig.web.json`; all others under `tsconfig.node.json`
 | `ical.js` | ICS import/export |
 | `i18next` / `react-i18next` | vi/en internationalization |
 | `lucide-react` | Icon set |
+| `electron-updater` | In-app updates from GitHub releases |
+| `electron-builder` | Windows NSIS / Linux AppImage packaging and release upload |
 | `vitest` | Unit test runner |
