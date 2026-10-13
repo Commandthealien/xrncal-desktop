@@ -11,7 +11,9 @@ import type {
   UpdateRecurringScopeInput,
   DeleteRecurringScopeInput,
   MaterializeLunarInput,
-  DetachLunarInput
+  DetachLunarInput,
+  RsvpResponse,
+  CalendarEvent
 } from '@shared/event-model'
 import type { SuggestTitlesOptions, TitleSuggestion } from '@shared/title-suggestions'
 import { rankTitleSuggestions } from '@shared/title-suggestions'
@@ -56,6 +58,8 @@ export function registerCalendarIpcHandlers(): void {
   ipcMain.removeHandler(IPC_CHANNELS.EVENT.SHARE_ICS)
   ipcMain.removeHandler(IPC_CHANNELS.EVENT.LIST_CONFLICTS)
   ipcMain.removeHandler(IPC_CHANNELS.EVENT.RESOLVE_CONFLICT)
+  ipcMain.removeHandler(IPC_CHANNELS.EVENT.RESPOND)
+  ipcMain.removeHandler(IPC_CHANNELS.EVENT.RESTORE)
 
   ipcMain.removeHandler(IPC_CHANNELS.ICS.IMPORT)
   ipcMain.removeHandler(IPC_CHANNELS.ICS.EXPORT)
@@ -285,6 +289,48 @@ export function registerCalendarIpcHandlers(): void {
     }
   )
 
+  ipcMain.handle(
+    IPC_CHANNELS.EVENT.RESTORE,
+    (_event, snapshot: { event: CalendarEvent; exceptions: EventException[] }, occurrenceStartUtc?: string) => {
+      try {
+        let restored: CalendarEvent
+        if (typeof occurrenceStartUtc === 'string') {
+          eventsRepo.restoreOccurrence(
+            snapshot.event.id,
+            occurrenceStartUtc,
+            snapshot.exceptions.find((ex) => ex.originalStartUtc === occurrenceStartUtc)
+          )
+          restored = eventsRepo.getEventById(snapshot.event.id)!.event
+        } else {
+          restored = eventsRepo.restoreEvent(snapshot)
+        }
+        nudgeSync()
+        return restored
+      } catch (err: unknown) {
+        if (err instanceof ReadOnlyCalendarError) {
+          throw new Error(`Write rejected: ${err.message}`)
+        }
+        throw err
+      }
+    }
+  )
+
+  ipcMain.handle(IPC_CHANNELS.EVENT.RESPOND, (_event, eventId: string, response: RsvpResponse) => {
+    if (response !== 'accepted' && response !== 'tentative' && response !== 'declined') {
+      throw new Error(`Not a reply: ${String(response)}`)
+    }
+    try {
+      const updated = eventsRepo.respondToInvite(eventId, response)
+      nudgeSync()
+      return updated
+    } catch (err: any) {
+      if (err instanceof ReadOnlyCalendarError) {
+        throw new Error(`Reply rejected: ${err.message}`)
+      }
+      throw err
+    }
+  })
+
   // 3. ICS Import / Export handlers
   ipcMain.handle(
     IPC_CHANNELS.ICS.IMPORT,
@@ -313,7 +359,10 @@ export function registerCalendarIpcHandlers(): void {
         db.transaction(() => {
           for (const ev of parsed.events) {
             try {
-              const created = eventsRepo.createEvent(ev)
+              // An import is a copy, not the meeting: with its guest list a
+              // synced calendar would make this account the organizer and
+              // (on Microsoft) send every guest a fresh invitation.
+              const created = eventsRepo.createEvent({ ...ev, attendees: undefined })
               if (ev.uid) {
                 uidToEventId.set(ev.uid, created.id)
               }

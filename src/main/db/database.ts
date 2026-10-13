@@ -336,7 +336,8 @@ ALTER TABLE events ADD COLUMN moved_from_calendar_id TEXT;
  * change and re-indexes the row in FTS5. That would have hung startup for over
  * a minute for no gain.
  *
- * CalDAV is unaffected either way: it addresses events by UID, which is ours.
+ * CalDAV uses the column too, for the resource's href: other clients do not
+ * have to name a resource after its UID (see caldav-sync-engine.ts).
  */
 export const MIGRATION_014_SQL = `
 ALTER TABLE events ADD COLUMN provider_event_id TEXT;
@@ -344,6 +345,170 @@ ALTER TABLE events ADD COLUMN provider_event_id TEXT;
 CREATE UNIQUE INDEX IF NOT EXISTS idx_events_provider_id
   ON events(calendar_id, provider_event_id)
   WHERE provider_event_id IS NOT NULL;
+`
+
+/**
+ * Per-event reminders, and the per-calendar default Google publishes.
+ *
+ * Until now every timed event rang once, ten minutes before, all-day events
+ * never rang, and reminders set on a provider were ignored on the way in and
+ * dropped on the way out. Both columns are JSON lists of
+ * `{ minutesBefore, method? }`; NULL means "use the default", `[]` "none".
+ *
+ * No backfill, for the same reason as 014: an UPDATE would re-index every row
+ * through trg_events_fts_update. NULL is already the right value for them.
+ */
+const MIGRATION_015_SQL = `
+ALTER TABLE events ADD COLUMN reminders TEXT;
+ALTER TABLE calendars ADD COLUMN default_reminders TEXT;
+`
+
+/**
+ * Replying to invitations.
+ *
+ * Attendees were never synced in either direction, so an invitation arrived
+ * with no guest list and no way to answer it. `is_self` marks which attendee
+ * is the account's own user; `rsvp_pending` holds a reply ('accepted',
+ * 'tentative' or 'declined') until the provider has it. A reply is not an edit
+ * of the event - a guest may not change anything else - so it travels on its
+ * own path rather than through `dirty`.
+ *
+ * `attendees_synced` says the local guest list is the provider's. Rows synced
+ * before this have an empty list that means "never fetched", not "no guests",
+ * and pushing it would remove every guest from the meeting - Graph would even
+ * send them cancellations. A push only carries attendees once this is set.
+ * Clearing the sync positions makes the next poll re-read every calendar, so
+ * the lists fill in straight away instead of as each event next changes.
+ */
+const MIGRATION_016_SQL = `
+ALTER TABLE attendees ADD COLUMN is_self INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE events ADD COLUMN rsvp_pending TEXT;
+ALTER TABLE events ADD COLUMN attendees_synced INTEGER NOT NULL DEFAULT 0;
+UPDATE sync_state SET sync_token = NULL;
+`
+
+/**
+ * Calendars subscribed to by URL - a published .ics feed (school timetables,
+ * fixtures, an Outlook calendar shared as a link). Such a calendar is local
+ * and read-only; `subscription_url` is the feed it is refreshed from, and
+ * `subscription_refreshed_at` when that last happened.
+ */
+const MIGRATION_017_SQL = `
+ALTER TABLE calendars ADD COLUMN subscription_url TEXT;
+ALTER TABLE calendars ADD COLUMN subscription_refreshed_at TEXT;
+`
+
+/**
+ * Two things the first versions of reminders and guest lists got wrong.
+ *
+ * `reminder_log` remembers which reminders have rung. It was kept in memory,
+ * and a reminder counts as due until its event starts, so every launch rang
+ * again whatever was in that window - a week-before reminder on each start of
+ * the app all week.
+ *
+ * `attendees.role` keeps what a guest is besides an address: 'optional', or
+ * 'resource' for a meeting room. Pulls dropped rooms and never read the
+ * optional flag, so the organizer's next edit pushed a list that took the room
+ * off the meeting and made every optional guest required. Clearing the sync
+ * positions again re-reads every calendar, so lists already stored get their
+ * rooms back before anything is pushed.
+ */
+const MIGRATION_018_SQL = `
+CREATE TABLE IF NOT EXISTS reminder_log (
+  ring_key TEXT PRIMARY KEY,
+  anchor_utc TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_reminder_log_anchor ON reminder_log(anchor_utc);
+ALTER TABLE attendees ADD COLUMN role TEXT;
+UPDATE sync_state SET sync_token = NULL;
+`
+
+/**
+ * Full-text search that works, and that rewriting a row does not pay for.
+ *
+ * Migration 002's events_fts was contentless (`content=''`), and a contentless
+ * table reads every column back as NULL - event_id included. The search join
+ * on it never matched, so every search fell through to LIKE; and the update
+ * trigger's `DELETE ... WHERE event_id = old.id` could never find the entry it
+ * meant to replace, so it scanned the whole index on every UPDATE of any column
+ * and then added another entry. A real 7,953-event database had 41,498 of them,
+ * and rewriting a row cost ~3 ms: 25 s, with the app frozen, for a sync that
+ * re-reads a calendar (as migration 018 makes every calendar do once).
+ *
+ * The new index reads its text from `events` by rowid (external content; VACUUM
+ * and VACUUM INTO keep those), is touched only when a title, notes or location
+ * actually changes, and folds diacritics, so "gio" finds "Giỗ".
+ */
+const MIGRATION_019_SQL = `
+DROP TRIGGER IF EXISTS trg_events_fts_insert;
+DROP TRIGGER IF EXISTS trg_events_fts_update;
+DROP TRIGGER IF EXISTS trg_events_fts_delete;
+DROP TABLE IF EXISTS events_fts;
+
+CREATE VIRTUAL TABLE events_fts USING fts5(
+  title,
+  notes,
+  location,
+  content='events',
+  content_rowid='rowid',
+  tokenize='unicode61 remove_diacritics 2'
+);
+
+CREATE TRIGGER trg_events_fts_insert AFTER INSERT ON events BEGIN
+  INSERT INTO events_fts(rowid, title, notes, location)
+  VALUES (new.rowid, new.title, new.notes, new.location);
+END;
+
+CREATE TRIGGER trg_events_fts_update AFTER UPDATE OF title, notes, location ON events
+WHEN old.title IS NOT new.title OR old.notes IS NOT new.notes OR old.location IS NOT new.location
+BEGIN
+  INSERT INTO events_fts(events_fts, rowid, title, notes, location)
+  VALUES ('delete', old.rowid, old.title, old.notes, old.location);
+  INSERT INTO events_fts(rowid, title, notes, location)
+  VALUES (new.rowid, new.title, new.notes, new.location);
+END;
+
+CREATE TRIGGER trg_events_fts_delete AFTER DELETE ON events BEGIN
+  INSERT INTO events_fts(events_fts, rowid, title, notes, location)
+  VALUES ('delete', old.rowid, old.title, old.notes, old.location);
+END;
+
+INSERT INTO events_fts(events_fts) VALUES ('rebuild');
+`
+
+/**
+ * The server's copy of each CalDAV event, as it was last read or written.
+ *
+ * A push re-PUTs the whole resource from the fields xrncal models, so anything
+ * else another client stored there (categories, attachments, private and
+ * free/busy flags, alarms this app cannot express, X- properties) was erased by
+ * any edit made here. mergeServerCopy() now carries it over from this copy. A
+ * table of its own keeps the events rows - which every range query reads - as
+ * small as they were. Clearing the CalDAV calendars' pull state makes the next
+ * sync read every event once, so copies exist before anything is edited.
+ */
+const MIGRATION_020_SQL = `
+CREATE TABLE IF NOT EXISTS event_sources (
+  event_id TEXT PRIMARY KEY REFERENCES events(id) ON DELETE CASCADE,
+  ics TEXT NOT NULL
+);
+UPDATE sync_state SET sync_token = NULL
+WHERE calendar_id IN (
+  SELECT c.id FROM calendars c JOIN accounts a ON a.id = c.account_id WHERE a.type = 'caldav'
+);
+`
+
+/**
+ * Reminders on screen and snoozed, so a restart keeps them: they were only
+ * memory, so restarting lost every snooze (the reminder never came back - it
+ * had already rung) and every card not yet dismissed. A row with no
+ * `snoozed_until` is a card showing.
+ */
+const MIGRATION_021_SQL = `
+CREATE TABLE IF NOT EXISTS reminder_state (
+  occurrence_id TEXT PRIMARY KEY,
+  snoozed_until TEXT
+);
 `
 
 /**
@@ -469,6 +634,62 @@ export function runMigrations(db: ISqliteDatabase): void {
     db.exec(MIGRATION_014_SQL)
     db.prepare('INSERT INTO schema_migrations (version, applied_at) VALUES (?, ?)').run(
       14,
+      new Date().toISOString()
+    )
+  }
+
+  if (currentVersion < 15) {
+    db.exec(MIGRATION_015_SQL)
+    db.prepare('INSERT INTO schema_migrations (version, applied_at) VALUES (?, ?)').run(
+      15,
+      new Date().toISOString()
+    )
+  }
+
+  if (currentVersion < 16) {
+    db.exec(MIGRATION_016_SQL)
+    db.prepare('INSERT INTO schema_migrations (version, applied_at) VALUES (?, ?)').run(
+      16,
+      new Date().toISOString()
+    )
+  }
+
+  if (currentVersion < 17) {
+    db.exec(MIGRATION_017_SQL)
+    db.prepare('INSERT INTO schema_migrations (version, applied_at) VALUES (?, ?)').run(
+      17,
+      new Date().toISOString()
+    )
+  }
+
+  if (currentVersion < 18) {
+    db.exec(MIGRATION_018_SQL)
+    db.prepare('INSERT INTO schema_migrations (version, applied_at) VALUES (?, ?)').run(
+      18,
+      new Date().toISOString()
+    )
+  }
+
+  if (currentVersion < 19) {
+    db.exec(MIGRATION_019_SQL)
+    db.prepare('INSERT INTO schema_migrations (version, applied_at) VALUES (?, ?)').run(
+      19,
+      new Date().toISOString()
+    )
+  }
+
+  if (currentVersion < 20) {
+    db.exec(MIGRATION_020_SQL)
+    db.prepare('INSERT INTO schema_migrations (version, applied_at) VALUES (?, ?)').run(
+      20,
+      new Date().toISOString()
+    )
+  }
+
+  if (currentVersion < 21) {
+    db.exec(MIGRATION_021_SQL)
+    db.prepare('INSERT INTO schema_migrations (version, applied_at) VALUES (?, ?)').run(
+      21,
       new Date().toISOString()
     )
   }

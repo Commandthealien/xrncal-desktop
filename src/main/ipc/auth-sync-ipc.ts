@@ -9,17 +9,15 @@ import { normalizeCalDavUrl, defaultCalDavName } from '../sync/caldav-discover'
 import { CalDavAdapter } from '../sync/caldav-adapter'
 import { SyncWorker } from '../sync/sync-worker'
 import { detachAccount } from '../db/repos/detach-account'
-import { ReminderScheduler } from '../notifications/reminder-scheduler'
 import type { CalendarAccount } from '@shared/event-model'
 
 let syncWorkerInstance: SyncWorker | null = null
-let reminderSchedulerInstance: ReminderScheduler | null = null
 
 export function getSyncWorker(): SyncWorker | null {
   return syncWorkerInstance
 }
 
-function initSyncAndReminders(
+function initSync(
   googleClientId?: string,
   googleClientSecret?: string,
   msClientId?: string,
@@ -34,9 +32,6 @@ function initSyncAndReminders(
     msClientSecret
   )
   syncWorkerInstance.start()
-
-  reminderSchedulerInstance = new ReminderScheduler(db)
-  reminderSchedulerInstance.start()
 }
 
 export function registerAuthSyncIpcHandlers(): void {
@@ -50,7 +45,7 @@ export function registerAuthSyncIpcHandlers(): void {
     const googleClientSecret = process.env.GOOGLE_OAUTH_CLIENT_SECRET
     const msClientId = process.env.MICROSOFT_CLIENT_ID
     const msClientSecret = process.env.MICROSOFT_CLIENT_SECRET
-    initSyncAndReminders(googleClientId, googleClientSecret, msClientId, msClientSecret)
+    initSync(googleClientId, googleClientSecret, msClientId, msClientSecret)
   }
 
   ipcMain.removeHandler(IPC_CHANNELS.AUTH.CONNECT_GOOGLE)

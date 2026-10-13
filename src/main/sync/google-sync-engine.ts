@@ -1,11 +1,15 @@
-import { fetchWithTimeout, describeHttpFailure } from './http'
+import { fetchWithTimeout, describeError, describeHttpFailure, isRetryableStatus } from './http'
 import type { ISqliteDatabase } from '../db/sqlite-driver'
 import { GoogleOAuthManager } from '../oauth/google-oauth'
 import {
   mapGoogleEventToDomain,
   mapDomainEventToGoogle,
+  googleOverridesToDomain,
+  googleAttendeesToDomain,
+  domainAttendeesToGoogle,
   type GoogleCalendarApiEvent
 } from './google-event-mapper'
+import { mergePulledReminders, parseRemindersJson, serializeReminders } from '@shared/reminders'
 import { EventsRepo } from '../db/repos/events-repo'
 import { SyncStateRepo } from '../db/repos/sync-state-repo'
 import type { CalendarEvent, EventException, SyncResult } from '@shared/event-model'
@@ -75,6 +79,11 @@ export class GoogleSyncEngine {
       const isPrimary = item.primary === true
       const color = item.backgroundColor || '#4285f4'
       const name = item.summary || 'Google Calendar'
+      // What an event set to "use default" rings with. Absent on calendars the
+      // account only reads, where the app setting applies instead.
+      const defaultReminders = Array.isArray(item.defaultReminders)
+        ? serializeReminders(googleOverridesToDomain(item.defaultReminders))
+        : null
 
       const existingCal = this.db
         .prepare('SELECT id FROM calendars WHERE id = ?')
@@ -83,10 +92,10 @@ export class GoogleSyncEngine {
       if (!existingCal) {
         this.db
           .prepare(
-            `INSERT INTO calendars (id, account_id, name, color, is_visible, is_read_only, is_default, created_at, updated_at)
-             VALUES (?, ?, ?, ?, 1, ?, ?, ?, ?)`
+            `INSERT INTO calendars (id, account_id, name, color, is_visible, is_read_only, is_default, default_reminders, created_at, updated_at)
+             VALUES (?, ?, ?, ?, 1, ?, ?, ?, ?, ?)`
           )
-          .run(item.id, accountId, name, color, isReadOnly ? 1 : 0, isPrimary ? 1 : 0, now, now)
+          .run(item.id, accountId, name, color, isReadOnly ? 1 : 0, isPrimary ? 1 : 0, defaultReminders, now, now)
       } else {
         this.db
           .prepare(
@@ -94,10 +103,10 @@ export class GoogleSyncEngine {
             // first discovered and never overwrites it again, so what you pick
             // here stays picked.
             `UPDATE calendars
-             SET name = ?, is_read_only = ?, updated_at = ?
+             SET name = ?, is_read_only = ?, default_reminders = ?, updated_at = ?
              WHERE id = ?`
           )
-          .run(name, isReadOnly ? 1 : 0, now, item.id)
+          .run(name, isReadOnly ? 1 : 0, defaultReminders, now, item.id)
       }
 
       syncedCalIds.push(item.id)
@@ -230,14 +239,23 @@ export class GoogleSyncEngine {
           // Master event
           const evt = mapped.event
           const now = new Date().toISOString()
+          const localId = localIdFor(evt.id)
+          const stored = this.db
+            .prepare('SELECT reminders, rsvp_pending FROM events WHERE id = ?')
+            .get<{ reminders: string | null; rsvp_pending: string | null }>(localId)
+          const reminders = mergePulledReminders(
+            'google',
+            stored ? parseRemindersJson(stored.reminders) : undefined,
+            evt.reminders ?? undefined
+          )
 
-          this.db
+          const upsert = this.db
             .prepare(
               `INSERT INTO events (
                 id, provider_event_id, calendar_id, uid, title, notes, location,
                 dtstart_utc, dtend_utc, tzid, all_day, rrule, color,
-                meeting_url, etag, dirty, is_deleted, created_at, updated_at
-              ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?)
+                meeting_url, reminders, etag, dirty, is_deleted, attendees_synced, created_at, updated_at
+              ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, 1, ?, ?)
               ON CONFLICT(id) DO UPDATE SET
                 provider_event_id = excluded.provider_event_id,
                 title = excluded.title,
@@ -250,32 +268,39 @@ export class GoogleSyncEngine {
                 rrule = excluded.rrule,
                 color = excluded.color,
                 meeting_url = excluded.meeting_url,
+                reminders = excluded.reminders,
                 etag = excluded.etag,
                 dirty = 0,
                 is_deleted = excluded.is_deleted,
+                attendees_synced = 1,
                 updated_at = excluded.updated_at
               WHERE events.dirty = 0 AND events.has_conflict = 0`
             )
-            .run(
-              localIdFor(evt.id),
-              evt.id,
-              evt.calendarId,
-              evt.uid || `${evt.id}@google.com`,
-              evt.title,
-              evt.notes || null,
-              evt.location || null,
-              evt.dtStartUtc,
-              evt.dtEndUtc,
-              evt.tzid || 'UTC',
-              evt.allDay ? 1 : 0,
-              evt.rrule || null,
-              evt.color || null,
-              evt.meetingUrl || null,
-              evt.etag || null,
-              evt.isDeleted ? 1 : 0,
-              now,
-              now
-            )
+          const applied = upsert.run(
+            localId,
+            evt.id,
+            evt.calendarId,
+            evt.uid || `${evt.id}@google.com`,
+            evt.title,
+            evt.notes || null,
+            evt.location || null,
+            evt.dtStartUtc,
+            evt.dtEndUtc,
+            evt.tzid || 'UTC',
+            evt.allDay ? 1 : 0,
+            evt.rrule || null,
+            evt.color || null,
+            evt.meetingUrl || null,
+            serializeReminders(reminders),
+            evt.etag || null,
+            evt.isDeleted ? 1 : 0,
+            now,
+            now
+          )
+          // A reply still on its way would be overwritten by the old answer.
+          if (applied.changes > 0 && !stored?.rsvp_pending) {
+            this.eventsRepo.replaceAttendees(localId, evt.attendees)
+          }
           pulledCount++
         }
       }
@@ -372,6 +397,15 @@ export class GoogleSyncEngine {
             }
           }
 
+          // The guest list goes out only when it is the whole list: an event
+          // never pushed has nothing on Google to lose, and a pulled one has its
+          // list once attendees_synced is set. A row edited before its list
+          // was ever fetched asks Google for it first - leaving it out of a PUT
+          // would delete every guest.
+          let attendees = row.attendees_synced === 1 || !row.etag
+            ? this.eventsRepo.getEventById(row.id)?.event.attendees ?? []
+            : await this.fetchAttendees(calendarId, googleEventId, accessToken)
+
           // INSERT or UPDATE
           const payload = mapDomainEventToGoogle({
             id: row.id,
@@ -387,6 +421,8 @@ export class GoogleSyncEngine {
             rrule: row.rrule,
             color: row.color,
             meetingUrl: row.meeting_url,
+            reminders: parseRemindersJson(row.reminders),
+            attendees: attendees ?? undefined,
             etag: row.etag
           } as any)
 
@@ -436,6 +472,12 @@ export class GoogleSyncEngine {
                  WHERE id = ?`
               )
               .run(resJson.id || googleEventId, resJson.etag || row.etag, now, row.id)
+            // The response is the event as Google now holds it, guests and all.
+            if (Array.isArray(resJson.attendees) || attendees) {
+              attendees = googleAttendeesToDomain(resJson.attendees)
+              if (!row.rsvp_pending) this.eventsRepo.replaceAttendees(row.id, attendees)
+              this.db.prepare('UPDATE events SET attendees_synced = 1 WHERE id = ?').run(row.id)
+            }
             pushedCount++
           } else if (putRes.status === 412) {
             // Precondition failed (ETag conflict): preserve local dirty row, surface it
@@ -501,6 +543,9 @@ export class GoogleSyncEngine {
         const body: Record<string, unknown> = exception.isCancelled
           ? { status: 'cancelled' }
           : {
+              // An instance cancelled earlier (an undone delete) stays
+              // cancelled unless told otherwise; a live one is unaffected.
+              status: 'confirmed',
               summary: exception.title || master.title,
               description: exception.notes ?? master.notes ?? undefined,
               location: exception.location ?? master.location ?? undefined,
@@ -526,6 +571,96 @@ export class GoogleSyncEngine {
         } else {
           errorCount++
         }
+      } catch {
+        errorCount++
+      }
+    }
+
+    return { pushedCount, errorCount }
+  }
+
+  /**
+   * The guest list Google holds for an event. Null when the event is gone from
+   * Google - the PUT that follows gets the same 404 and is handled as before.
+   * Any other failure throws, so the row waits for the next poll: a PUT sent
+   * without the list would delete every guest.
+   */
+  private async fetchAttendees(
+    calendarId: string,
+    googleEventId: string,
+    accessToken: string
+  ): Promise<ReturnType<typeof googleAttendeesToDomain> | null> {
+    const res = await fetchWithTimeout(
+      `${GOOGLE_API_BASE}/calendars/${encodeURIComponent(calendarId)}/events/${encodeURIComponent(googleEventId)}`,
+      { headers: { Authorization: `Bearer ${accessToken}` } }
+    )
+    if (res.status === 404 || res.status === 410) return null
+    if (!res.ok) throw new Error(`Could not read the guest list first: ${await describeHttpFailure(res)}`)
+    const json = (await res.json()) as GoogleCalendarApiEvent
+    return googleAttendeesToDomain(json.attendees)
+  }
+
+  /**
+   * Deliver replies to invitations. Google has no RSVP endpoint: a guest
+   * answers by patching the guest list with their own entry changed. The list
+   * is read fresh first, so a guest the organizer added since the last pull is
+   * not taken off again.
+   */
+  async pushRsvps(
+    calendarId: string,
+    accessToken: string
+  ): Promise<{ pushedCount: number; errorCount: number }> {
+    let pushedCount = 0
+    let errorCount = 0
+
+    for (const { event, response } of this.eventsRepo.listPendingRsvps(calendarId)) {
+      try {
+        const url =
+          `${GOOGLE_API_BASE}/calendars/${encodeURIComponent(calendarId)}` +
+          `/events/${encodeURIComponent(event.providerEventId || event.id)}`
+        const current = await fetchWithTimeout(url, { headers: { Authorization: `Bearer ${accessToken}` } })
+        if (current.status === 404 || current.status === 410) {
+          // The organizer cancelled it before the reply went; the next pull
+          // takes it off the calendar. Retrying would fail on every poll.
+          this.eventsRepo.markRsvpSent(event.id)
+          continue
+        }
+        if (!current.ok) {
+          errorCount++
+          continue
+        }
+        const json = (await current.json()) as GoogleCalendarApiEvent
+        const guests = googleAttendeesToDomain(json.attendees)
+        if (!guests.some((a) => a.isSelf)) {
+          // Invited through a group, or no longer invited: nothing to answer.
+          this.eventsRepo.markRsvpSent(event.id)
+          errorCount++
+          continue
+        }
+
+        const patched = await fetchWithTimeout(url, {
+          method: 'PATCH',
+          headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            attendees: domainAttendeesToGoogle(
+              guests.map((a) => (a.isSelf ? { ...a, responseStatus: response } : a))
+            )
+          })
+        })
+        if (!patched.ok) {
+          errorCount++
+          if (!isRetryableStatus(patched.status)) {
+            // Refused for good. Show the answer Google still has rather than
+            // one the organizer will never see.
+            this.eventsRepo.markRsvpSent(event.id)
+            this.eventsRepo.replaceAttendees(event.id, guests)
+          }
+          continue
+        }
+        const updated = (await patched.json()) as GoogleCalendarApiEvent
+        this.eventsRepo.markRsvpSent(event.id, updated.etag ?? null)
+        this.eventsRepo.replaceAttendees(event.id, googleAttendeesToDomain(updated.attendees))
+        pushedCount++
       } catch {
         errorCount++
       }
@@ -581,6 +716,7 @@ export class GoogleSyncEngine {
     let totalPulled = 0
     let totalPushed = 0
     let totalErrors = 0
+    const accountErrors: Record<string, string> = {}
 
     for (const acc of activeGoogleAccounts) {
       try {
@@ -593,6 +729,10 @@ export class GoogleSyncEngine {
           // reject the events endpoint; without this, the first such calendar threw
           // and every remaining calendar on the account was silently skipped.
           try {
+            const rsvpRes = await this.pushRsvps(calId, token)
+            totalPushed += rsvpRes.pushedCount
+            totalErrors += rsvpRes.errorCount
+
             const pushRes = await this.pushDirtyEvents(calId, token)
             totalPushed += pushRes.pushedCount
             totalErrors += pushRes.errorCount
@@ -616,7 +756,9 @@ export class GoogleSyncEngine {
             totalErrors++
           }
         }
-      } catch {
+      } catch (err) {
+        // The sign-in or the calendar list failed, so nothing on the account synced.
+        accountErrors[acc.id] = describeError(err)
         totalErrors++
       }
     }
@@ -626,7 +768,8 @@ export class GoogleSyncEngine {
       pulledCount: totalPulled,
       pushedCount: totalPushed,
       errorCount: totalErrors,
-      message: `Sync finished: pulled ${totalPulled}, pushed ${totalPushed}`
+      message: `Sync finished: pulled ${totalPulled}, pushed ${totalPushed}`,
+      accountErrors
     }
   }
 }

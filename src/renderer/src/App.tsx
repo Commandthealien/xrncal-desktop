@@ -6,6 +6,8 @@ import type { AppSettings } from '@shared/settings-contract'
 import type {
   Calendar,
   CalendarAccount,
+  CalendarEvent,
+  EventException,
   ExpandedOccurrence,
   CreateEventInput,
   UpdateEventInput,
@@ -33,25 +35,37 @@ import SearchPaletteModal from './components/SearchPaletteModal'
 import SettingsPanel, { type SettingsSection } from './components/SettingsPanel'
 import KeyboardShortcutsModal from './components/KeyboardShortcutsModal'
 import SyncConflictsModal from './components/SyncConflictsModal'
+import ReminderStack from './components/ReminderStack'
 import AppHeader from './components/shell/AppHeader'
 import AppSidebar from './components/shell/AppSidebar'
 import { useEventDnD } from './dnd/use-event-dnd'
 import { singleDayRange } from './dnd/drop-target'
 import { NotionToaster, toast, showFriendlyError, isStaleEventError } from './components/ui'
 import { DisplayPreferencesProvider, type DisplayPreferences } from './context/DisplayPreferencesContext'
+import { TIME_ZONE_NAMES } from './lib/time-zones'
 
 export type { CalendarViewType }
 
-const TIMEZONE_NAMES: string[] = (() => {
-  try {
-    return (Intl as any).supportedValuesOf ? (Intl as any).supportedValuesOf('timeZone') : []
-  } catch {
-    return []
-  }
-})()
-
 /** The dialog's start when nothing more specific was asked for; stable so it never resets the stack. */
 const ACCOUNTS_LIST: AccountsView[] = [{ name: 'list' }]
+
+/** How many steps Ctrl+Z can go back. */
+const UNDO_LIMIT = 20
+
+/** An occurrence put back where it was: the update a 'this'-scoped change of
+ *  a recurring occurrence is undone with. */
+function occurrenceAsUpdate(occ: ExpandedOccurrence): UpdateEventInput {
+  return {
+    title: occ.title,
+    dtStartUtc: occ.startUtc,
+    dtEndUtc: occ.endUtc,
+    tzid: occ.tzid,
+    allDay: occ.allDay,
+    notes: occ.notes,
+    location: occ.location,
+    meetingUrl: occ.meetingUrl
+  }
+}
 
 export const App: React.FC = () => {
   const { t, i18n } = useTranslation()
@@ -81,6 +95,11 @@ export const App: React.FC = () => {
   const [secondaryTimezone, setSecondaryTimezone] = useState<string>('')
   const [suggestionShowCalendarName, setSuggestionShowCalendarName] = useState<boolean>(true)
   const [dragSnapMinutes, setDragSnapMinutes] = useState<AppSettings['dragSnapMinutes']>(15)
+  const [defaultReminderMinutes, setDefaultReminderMinutes] =
+    useState<AppSettings['defaultReminderMinutes']>(10)
+  const [defaultAllDayReminderMinutes, setDefaultAllDayReminderMinutes] =
+    useState<AppSettings['defaultAllDayReminderMinutes']>(null)
+  const [checkForUpdates, setCheckForUpdates] = useState(true)
   const [headerVisible, setHeaderVisible] = useState(true)
   const headerHideTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [firstDayOfWeek, setFirstDayOfWeek] = useState(1)
@@ -111,6 +130,14 @@ export const App: React.FC = () => {
   } | null>(null)
 
   const visibleRange = useVisibleRange(anchorDate, currentView, i18n.language)
+
+  // Each entry undoes one move, resize, copy or delete. Only those: an edit in
+  // the editor is deliberate, and a series-wide change has no simple inverse.
+  const undoStackRef = useRef<(() => Promise<unknown>)[]>([])
+  const pushUndo = useCallback((undo: () => Promise<unknown>) => {
+    undoStackRef.current.push(undo)
+    if (undoStackRef.current.length > UNDO_LIMIT) undoStackRef.current.shift()
+  }, [])
 
   // List view starts with a modest window and grows incrementally as the user
   // scrolls near an edge, instead of always fetching/expanding a huge fixed range.
@@ -243,6 +270,7 @@ export const App: React.FC = () => {
       targetAllDay?: boolean
     ) => {
       if (!window.xrncal?.events) return
+      const events = window.xrncal.events
 
       const sourceCal = calendars.find((c) => c.id === occ.calendarId)
       if (sourceCal?.isReadOnly && !isCopy) {
@@ -256,7 +284,7 @@ export const App: React.FC = () => {
           // duplicate: no recurrence, no multi-day span, and none of the
           // original's notes, location or meeting link. Its length is kept.
           const range = singleDayRange(targetStart, targetEnd, dragSnapMinutes)
-          await window.xrncal.events.copy({
+          const copied = await window.xrncal.events.copy({
             sourceEventId: occ.eventId,
             dtStartUtc: range.start.toUTC().toISO()!,
             dtEndUtc: range.end.toUTC().toISO()!,
@@ -267,6 +295,7 @@ export const App: React.FC = () => {
             // copy too, or the copy keeps its all-day flag with an hour's range.
             allDay: targetAllDay === undefined ? occ.allDay : targetAllDay
           })
+          pushUndo(() => events.delete(copied.id))
         } else if (occ.isRecurring) {
           await window.xrncal.events.updateScope({
             masterEventId: occ.eventId,
@@ -285,6 +314,14 @@ export const App: React.FC = () => {
               meetingUrl: occ.meetingUrl
             }
           })
+          pushUndo(() =>
+            events.updateScope({
+              masterEventId: occ.eventId,
+              originalStartUtc: occ.originalStartUtc || occ.startUtc,
+              scope: 'this',
+              updateInput: occurrenceAsUpdate(occ)
+            })
+          )
         } else {
           await window.xrncal.events.move({
             eventId: occ.eventId,
@@ -293,6 +330,15 @@ export const App: React.FC = () => {
             targetCalendarId: occ.calendarId,
             allDay: targetAllDay === undefined ? occ.allDay : targetAllDay
           })
+          pushUndo(() =>
+            events.move({
+              eventId: occ.eventId,
+              dtStartUtc: occ.startUtc,
+              dtEndUtc: occ.endUtc,
+              targetCalendarId: occ.calendarId,
+              allDay: occ.allDay
+            })
+          )
         }
         await loadCalendarsAndEvents()
       } catch (err: any) {
@@ -307,7 +353,7 @@ export const App: React.FC = () => {
         showFriendlyError(err, t('toast.moveFailed'))
       }
     },
-    [calendars, dragSnapMinutes, loadCalendarsAndEvents, t]
+    [calendars, dragSnapMinutes, loadCalendarsAndEvents, pushUndo, t]
   )
 
   const {
@@ -389,6 +435,9 @@ export const App: React.FC = () => {
           setSecondaryTimezone(settings.secondaryTimezone ?? '')
           setSuggestionShowCalendarName(settings.suggestionShowCalendarName ?? true)
           setDragSnapMinutes(settings.dragSnapMinutes ?? 15)
+          setDefaultReminderMinutes(settings.defaultReminderMinutes === undefined ? 10 : settings.defaultReminderMinutes)
+          setDefaultAllDayReminderMinutes(settings.defaultAllDayReminderMinutes ?? null)
+          setCheckForUpdates(settings.checkForUpdates ?? true)
           setFirstDayOfWeek(settings.firstDayOfWeek ?? 1)
           const loc = settings.locale === 'vi' || settings.locale === 'en' ? settings.locale : 'en'
           if (loc !== i18n.language) await i18n.changeLanguage(loc)
@@ -515,6 +564,21 @@ export const App: React.FC = () => {
     if (window.xrncal?.settings) await window.xrncal.settings.set('dragSnapMinutes', next)
   }
 
+  const changeDefaultReminderMinutes = async (next: AppSettings['defaultReminderMinutes']) => {
+    setDefaultReminderMinutes(next)
+    if (window.xrncal?.settings) await window.xrncal.settings.set('defaultReminderMinutes', next)
+  }
+
+  const changeDefaultAllDayReminderMinutes = async (next: AppSettings['defaultAllDayReminderMinutes']) => {
+    setDefaultAllDayReminderMinutes(next)
+    if (window.xrncal?.settings) await window.xrncal.settings.set('defaultAllDayReminderMinutes', next)
+  }
+
+  const toggleCheckForUpdates = async (next: boolean) => {
+    setCheckForUpdates(next)
+    if (window.xrncal?.settings) await window.xrncal.settings.set('checkForUpdates', next)
+  }
+
   const toggleSuggestionShowCalendarName = async (next: boolean) => {
     setSuggestionShowCalendarName(next)
     if (window.xrncal?.settings)
@@ -594,13 +658,12 @@ export const App: React.FC = () => {
     options?: { confirm?: boolean; title?: string }
   ) => {
     if (!window.xrncal?.events) return
+    const events = window.xrncal.events
 
     const shouldPrompt = options?.confirm !== false
     const done = async () => {
       setIsEditorOpen(false)
       await loadCalendarsAndEvents()
-      // With no confirmation this toast is the only feedback the gesture gives,
-      // so it names what went.
     }
 
     if (isRecurring && occurrenceStartUtc) {
@@ -609,11 +672,13 @@ export const App: React.FC = () => {
         // The scope prompt asks a question the gesture has already answered, and
         // 'this' is both the literal reading and the least destructive one.
         try {
+          const snapshot = await window.xrncal.events.getById(eventId)
           await window.xrncal.events.deleteScope({
             masterEventId: eventId,
             originalStartUtc: occurrenceStartUtc,
             scope: 'this'
           })
+          if (snapshot) offerUndoDelete(undoForScopedDelete(snapshot, occurrenceStartUtc, 'this'))
           await done()
         } catch (err: any) {
           showFriendlyError(err, t('toast.deleteFailed'))
@@ -634,12 +699,66 @@ export const App: React.FC = () => {
     if (shouldPrompt && !confirm(t('toast.confirmDelete'))) return
 
     try {
+      // Taken before the delete: a synced deletion is pushed within seconds, and
+      // after that only the snapshot can bring the event back.
+      const snapshot = await window.xrncal.events.getById(eventId)
       await window.xrncal.events.delete(eventId)
+      if (snapshot) offerUndoDelete(() => events.restore(snapshot))
       await done()
     } catch (err: any) {
       showFriendlyError(err, t('toast.deleteFailed'))
     }
   }
+
+  /**
+   * A deleted event or occurrence can be brought back from the toast as well as
+   * with Ctrl+Z. The toast is the delete's only feedback when it was not
+   * confirmed first (middle-click), and the one destructive action worth a
+   * second chance in plain sight.
+   */
+  const offerUndoDelete = (undo: () => Promise<unknown>) => {
+    pushUndo(undo)
+    toast(t('undo.deleted'), {
+      action: {
+        label: t('undo.action'),
+        onClick: () => void runUndo(undo)
+      }
+    })
+  }
+
+  /** The inverse of deleting one, this-and-future, or all occurrences of a series. */
+  const undoForScopedDelete = (
+    snapshot: { event: CalendarEvent; exceptions: EventException[] },
+    originalStartUtc: string,
+    scope: RecurringEditScope
+  ): (() => Promise<unknown>) => {
+    const events = window.xrncal!.events
+    const master = snapshot.event
+    if (scope === 'all') return () => events.restore(snapshot)
+    // The series was capped with UNTIL; give it its old rule back.
+    if (scope === 'future') return () => events.update(master.id, { rrule: master.rrule })
+    // One occurrence was cancelled. The repo knows whether that has reached
+    // the provider yet, and so how to bring it back (see restoreOccurrence).
+    return () => events.restore(snapshot, originalStartUtc)
+  }
+
+  const runUndo = useCallback(
+    async (undo: () => Promise<unknown>) => {
+      undoStackRef.current = undoStackRef.current.filter((u) => u !== undo)
+      try {
+        await undo()
+      } catch (err) {
+        showFriendlyError(err, t('undo.failed'))
+      }
+      await loadCalendarsAndEvents()
+    },
+    [loadCalendarsAndEvents, t]
+  )
+
+  const undoLast = useCallback(() => {
+    const undo = undoStackRef.current[undoStackRef.current.length - 1]
+    if (undo) void runUndo(undo)
+  }, [runUndo])
 
   const handleConfirmRecurringScope = async (scope: RecurringEditScope) => {
     if (!pendingRecurringScope || !window.xrncal?.events) return
@@ -653,11 +772,15 @@ export const App: React.FC = () => {
           updateInput: pendingRecurringScope.input
         })
       } else if (pendingRecurringScope.action === 'delete') {
+        const snapshot = await window.xrncal.events.getById(pendingRecurringScope.eventId)
         await window.xrncal.events.deleteScope({
           masterEventId: pendingRecurringScope.eventId,
           originalStartUtc: pendingRecurringScope.occurrenceStartUtc,
           scope
         })
+        if (snapshot) {
+          offerUndoDelete(undoForScopedDelete(snapshot, pendingRecurringScope.occurrenceStartUtc, scope))
+        }
       }
       setPendingRecurringScope(null)
       await loadCalendarsAndEvents()
@@ -695,6 +818,7 @@ export const App: React.FC = () => {
 
   const handleDropMove = async (drop: PendingDropAction) => {
     if (!window.xrncal?.events) return
+    const events = window.xrncal.events
 
     const targetCalId = drop.targetCalendarId || drop.occurrence.calendarId
     const targetCal = calendars.find((c) => c.id === targetCalId)
@@ -728,6 +852,16 @@ export const App: React.FC = () => {
         dtEndUtc: drop.targetEnd.toUTC().toISO()!,
         targetCalendarId: targetCalId
       })
+      const original = drop.occurrence
+      pushUndo(() =>
+        events.move({
+          eventId: original.eventId,
+          dtStartUtc: original.startUtc,
+          dtEndUtc: original.endUtc,
+          targetCalendarId: original.calendarId,
+          allDay: original.allDay
+        })
+      )
       setPendingDrop(null)
       await loadCalendarsAndEvents()
     } catch (err: any) {
@@ -743,6 +877,7 @@ export const App: React.FC = () => {
 
   const handleDropCopy = async (drop: PendingDropAction, copyInstanceOnly?: boolean) => {
     if (!window.xrncal?.events) return
+    const events = window.xrncal.events
     try {
       // "Copy whole series" is asking for a duplicate, so it keeps everything.
       // Every other copy is a new event that shares a name: no recurrence, no
@@ -752,7 +887,7 @@ export const App: React.FC = () => {
         ? singleDayRange(drop.targetStart, drop.targetEnd, dragSnapMinutes)
         : { start: drop.targetStart, end: drop.targetEnd }
 
-      await window.xrncal.events.copy({
+      const copied = await window.xrncal.events.copy({
         sourceEventId: drop.occurrence.eventId,
         dtStartUtc: range.start.toUTC().toISO()!,
         dtEndUtc: range.end.toUTC().toISO()!,
@@ -760,6 +895,7 @@ export const App: React.FC = () => {
         copyInstanceOnly: copyInstanceOnly ?? bare,
         bare
       })
+      pushUndo(() => events.delete(copied.id))
       setPendingDrop(null)
       await loadCalendarsAndEvents()
     } catch (err: any) {
@@ -932,6 +1068,11 @@ export const App: React.FC = () => {
         }
         return
       }
+      if ((e.ctrlKey || e.metaKey) && !e.shiftKey && e.key.toLowerCase() === 'z') {
+        e.preventDefault()
+        undoLast()
+        return
+      }
       // Anything else held with Ctrl/Cmd belongs to Electron (reload, quit…).
       if (e.ctrlKey || e.metaKey) return
 
@@ -1071,7 +1212,8 @@ export const App: React.FC = () => {
     selectedOccurrence,
     showMiniCalendar,
     syncNow,
-    toggleMiniCalendar
+    toggleMiniCalendar,
+    undoLast
   ])
 
   return (
@@ -1081,7 +1223,9 @@ export const App: React.FC = () => {
         dayStartHour,
         secondaryTimezone,
         suggestionShowCalendarName,
-        dragSnapMinutes
+        dragSnapMinutes,
+        defaultReminderMinutes,
+        defaultAllDayReminderMinutes
       }}>
     <div
       className="relative flex h-screen w-screen flex-col overflow-hidden bg-app font-sans text-primary select-none"
@@ -1176,7 +1320,13 @@ export const App: React.FC = () => {
             onSetCalendarsVisibility={setCalendarsVisibility}
             onChangeCalendarColor={changeCalendarColor}
             onOpenAccount={(accountId) =>
-              setAccountsDialog(accountId ? [{ name: 'list' }, { name: 'account', accountId }] : [{ name: 'list' }])
+              setAccountsDialog(
+                accountId === 'subscriptions'
+                  ? [{ name: 'list' }, { name: 'subscriptions' }]
+                  : accountId
+                    ? [{ name: 'list' }, { name: 'account', accountId }]
+                    : [{ name: 'list' }]
+              )
             }
             onAddAccount={() => setAccountsDialog([{ name: 'list' }, { name: 'add' }])}
           />
@@ -1390,7 +1540,13 @@ export const App: React.FC = () => {
         onToggleSuggestionShowCalendarName={toggleSuggestionShowCalendarName}
         dragSnapMinutes={dragSnapMinutes}
         onChangeDragSnapMinutes={changeDragSnapMinutes}
-        timezoneNames={TIMEZONE_NAMES}
+        defaultReminderMinutes={defaultReminderMinutes}
+        onChangeDefaultReminderMinutes={changeDefaultReminderMinutes}
+        defaultAllDayReminderMinutes={defaultAllDayReminderMinutes}
+        onChangeDefaultAllDayReminderMinutes={changeDefaultAllDayReminderMinutes}
+        timezoneNames={TIME_ZONE_NAMES}
+        checkForUpdates={checkForUpdates}
+        onToggleCheckForUpdates={toggleCheckForUpdates}
         autoHideHeader={autoHideHeader}
         onToggleAutoHideHeader={toggleAutoHideHeader}
         onManageAccounts={() => {
@@ -1402,6 +1558,15 @@ export const App: React.FC = () => {
         onOpenConflicts={() => setIsConflictsModalOpen(true)}
         appVersion={appVersion}
         platform={platform}
+      />
+
+      <ReminderStack
+        calendars={calendars}
+        onOpen={(occurrence) => {
+          setSelection({ occurrenceId: occurrence.id, eventId: occurrence.eventId })
+          setEditorData({ occurrence })
+          setIsEditorOpen(true)
+        }}
       />
 
       <NotionToaster />

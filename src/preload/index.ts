@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer } from 'electron'
-import { IPC_CHANNELS, type AppLocale, type XrncalAPI } from '@shared/ipc-contract'
+import { IPC_CHANNELS, type ActiveReminder, type AppLocale, type XrncalAPI } from '@shared/ipc-contract'
 import type { Calendar, CreateEventInput, UpdateEventInput, EventException } from '@shared/event-model'
 
 const xrncalApi: XrncalAPI = {
@@ -38,6 +38,17 @@ const xrncalApi: XrncalAPI = {
       return () => ipcRenderer.removeListener(IPC_CHANNELS.SYNC.CHANGED, listener)
     }
   },
+  reminders: {
+    listActive: () => ipcRenderer.invoke(IPC_CHANNELS.REMINDERS.LIST_ACTIVE),
+    dismiss: (key: string) => ipcRenderer.invoke(IPC_CHANNELS.REMINDERS.DISMISS, key),
+    snooze: (key: string, minutes: number) =>
+      ipcRenderer.invoke(IPC_CHANNELS.REMINDERS.SNOOZE, key, minutes),
+    onChanged: (callback: (active: ActiveReminder[]) => void) => {
+      const listener = (_event: unknown, active: ActiveReminder[]): void => callback(active)
+      ipcRenderer.on(IPC_CHANNELS.REMINDERS.CHANGED, listener)
+      return () => ipcRenderer.removeListener(IPC_CHANNELS.REMINDERS.CHANGED, listener)
+    }
+  },
   calendars: {
     list: () => ipcRenderer.invoke(IPC_CHANNELS.CALENDAR.LIST),
     create: (data: { name: string; color: string }) =>
@@ -69,7 +80,10 @@ const xrncalApi: XrncalAPI = {
       ipcRenderer.invoke(IPC_CHANNELS.EVENT.SHARE_ICS, eventId),
     listConflicts: () => ipcRenderer.invoke(IPC_CHANNELS.EVENT.LIST_CONFLICTS),
     resolveConflict: (eventId: string, resolution: 'keepMine' | 'keepTheirs') =>
-      ipcRenderer.invoke(IPC_CHANNELS.EVENT.RESOLVE_CONFLICT, eventId, resolution)
+      ipcRenderer.invoke(IPC_CHANNELS.EVENT.RESOLVE_CONFLICT, eventId, resolution),
+    respond: (eventId, response) => ipcRenderer.invoke(IPC_CHANNELS.EVENT.RESPOND, eventId, response),
+    restore: (snapshot, occurrenceStartUtc) =>
+      ipcRenderer.invoke(IPC_CHANNELS.EVENT.RESTORE, snapshot, occurrenceStartUtc)
   },
   ics: {
     importIcs: (targetCalendarId: string, icsContent: string) =>
@@ -88,6 +102,10 @@ const xrncalApi: XrncalAPI = {
       ipcRenderer.invoke(IPC_CHANNELS.HOLIDAYS.SUBSCRIBE, type),
     unsubscribe: (type: 'vietnam' | 'international') =>
       ipcRenderer.invoke(IPC_CHANNELS.HOLIDAYS.UNSUBSCRIBE, type)
+  },
+  subscriptions: {
+    add: (url: string, name?: string) => ipcRenderer.invoke(IPC_CHANNELS.SUBSCRIPTIONS.ADD, url, name),
+    refresh: (calendarId: string) => ipcRenderer.invoke(IPC_CHANNELS.SUBSCRIPTIONS.REFRESH, calendarId)
   }
 }
 

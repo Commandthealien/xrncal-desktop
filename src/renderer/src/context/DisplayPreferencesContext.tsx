@@ -11,6 +11,9 @@ export interface DisplayPreferences {
   suggestionShowCalendarName: boolean
   /** Minutes that drag, drop and resize snap to. */
   dragSnapMinutes: AppSettings['dragSnapMinutes']
+  /** What an event with no reminders of its own rings with (see effectiveReminders). */
+  defaultReminderMinutes: AppSettings['defaultReminderMinutes']
+  defaultAllDayReminderMinutes: AppSettings['defaultAllDayReminderMinutes']
 }
 
 const DEFAULT_DISPLAY_PREFERENCES: DisplayPreferences = {
@@ -19,7 +22,9 @@ const DEFAULT_DISPLAY_PREFERENCES: DisplayPreferences = {
   dayStartHour: 7,
   secondaryTimezone: '',
   suggestionShowCalendarName: true,
-  dragSnapMinutes: 15
+  dragSnapMinutes: 15,
+  defaultReminderMinutes: 10,
+  defaultAllDayReminderMinutes: null
 }
 
 /** Row height (px) of one hour in the Day/Week timed grid, per hourBlockSize setting. */

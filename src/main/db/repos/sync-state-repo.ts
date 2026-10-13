@@ -39,7 +39,7 @@ export class SyncStateRepo {
            (SELECT COUNT(*) FROM events e
               JOIN calendars c ON c.id = e.calendar_id
               JOIN accounts a ON a.id = c.account_id
-             WHERE e.dirty = 1 AND e.has_conflict = 0
+             WHERE (e.dirty = 1 OR e.rsvp_pending IS NOT NULL) AND e.has_conflict = 0
                AND a.type != 'local' AND a.is_active = 1)
          + (SELECT COUNT(*) FROM event_exceptions x
               JOIN events e ON e.id = x.master_event_id

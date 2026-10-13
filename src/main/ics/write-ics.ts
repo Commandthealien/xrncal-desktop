@@ -1,6 +1,7 @@
 import { DateTime } from 'luxon'
 import { inclusiveEndToExclusiveDate } from '@shared/all-day'
-import type { Calendar, CalendarEvent, EventException } from '@shared/event-model'
+import type { Attendee, Calendar, CalendarEvent, EventException } from '@shared/event-model'
+import { remindersForProvider, type EventReminder } from '@shared/reminders'
 
 function formatIcsDateTime(isoUtc: string, isAllDay: boolean): string {
   const dt = DateTime.fromISO(isoUtc, { zone: 'utc' })
@@ -16,6 +17,71 @@ function escapeIcsText(text: string): string {
     .replace(/;/g, '\\;')
     .replace(/,/g, '\\,')
     .replace(/\n/g, '\\n')
+}
+
+/** `-P1DT15H` for 2340 minutes before; `PT0S` for the start itself. */
+function formatTriggerDuration(minutesBefore: number): string {
+  if (minutesBefore <= 0) return 'PT0S'
+  const days = Math.floor(minutesBefore / 1440)
+  const hours = Math.floor((minutesBefore % 1440) / 60)
+  const minutes = minutesBefore % 60
+  const time = `${hours ? `${hours}H` : ''}${minutes ? `${minutes}M` : ''}`
+  return `-P${days ? `${days}D` : ''}${time ? `T${time}` : ''}`
+}
+
+/**
+ * One DISPLAY alarm per reminder. Email alarms need an address to send to,
+ * which this app does not have, so they stay local (see remindersForProvider).
+ * An override component gets the same alarms: in iCalendar it does not inherit
+ * them from the series, so without this a moved occurrence would ring nowhere.
+ */
+function pushAlarmLines(lines: string[], reminders: EventReminder[] | undefined, title: string): void {
+  if (!reminders) return
+  for (const r of remindersForProvider('caldav', reminders)) {
+    lines.push('BEGIN:VALARM')
+    lines.push('ACTION:DISPLAY')
+    lines.push(`DESCRIPTION:${escapeIcsText(title)}`)
+    lines.push(`TRIGGER:${formatTriggerDuration(r.minutesBefore)}`)
+    lines.push('END:VALARM')
+  }
+}
+
+const PARTSTAT: Record<NonNullable<Attendee['responseStatus']>, string> = {
+  accepted: 'ACCEPTED',
+  declined: 'DECLINED',
+  tentative: 'TENTATIVE',
+  needsAction: 'NEEDS-ACTION'
+}
+
+/** A quoted parameter value; RFC 5545 has no escape for a double quote. */
+function paramValue(text: string): string {
+  return `"${text.replace(/"/g, "'")}"`
+}
+
+/**
+ * ORGANIZER and ATTENDEE lines. A CalDAV push replaces the whole resource, so
+ * leaving these out deleted the guest list on the server - and a guest's reply
+ * travels as their own PARTSTAT here, for the server to pass on.
+ */
+function pushAttendeeLines(lines: string[], attendees: Attendee[] | undefined): void {
+  if (!attendees || attendees.length === 0) return
+  const organizer = attendees.find((a) => a.isOrganizer)
+  if (organizer) {
+    const cn = organizer.displayName ? `;CN=${paramValue(organizer.displayName)}` : ''
+    lines.push(`ORGANIZER${cn}:mailto:${organizer.email}`)
+  }
+  for (const a of attendees) {
+    const cn = a.displayName ? `;CN=${paramValue(a.displayName)}` : ''
+    const role =
+      a.role === 'room'
+        ? ';CUTYPE=ROOM'
+        : a.role === 'resource'
+          ? ';CUTYPE=RESOURCE'
+          : a.role === 'optional'
+            ? ';ROLE=OPT-PARTICIPANT'
+            : ''
+    lines.push(`ATTENDEE${cn}${role};PARTSTAT=${PARTSTAT[a.responseStatus || 'needsAction']}:mailto:${a.email}`)
+  }
 }
 
 /**
@@ -87,6 +153,8 @@ export function generateIcs(
         event.allDay ? `EXDATE;VALUE=DATE:${formattedExdates}` : `EXDATE:${formattedExdates}`
       )
     }
+    pushAttendeeLines(lines, event.attendees)
+    pushAlarmLines(lines, event.reminders, event.title)
 
     lines.push('END:VEVENT')
 
@@ -124,6 +192,8 @@ export function generateIcs(
         if (ex.location || event.location) {
           lines.push(`LOCATION:${escapeIcsText(ex.location || event.location || '')}`)
         }
+        pushAttendeeLines(lines, event.attendees)
+        pushAlarmLines(lines, event.reminders, ex.title || event.title)
       }
 
       lines.push('END:VEVENT')

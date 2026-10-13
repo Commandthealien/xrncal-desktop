@@ -30,6 +30,15 @@ export interface AppSettings {
   /** Title suggestions always show the calendar's colour dot; this adds its name
    *  next to it. Off keeps the list to one line per suggestion. */
   suggestionShowCalendarName: boolean
+  /** Minutes before a timed event that it rings when it names no reminders of
+   *  its own (and its calendar publishes no default). null: none. */
+  defaultReminderMinutes: number | null
+  /** The same for all-day events, counted back from midnight on the day, so
+   *  900 is "the day before at 09:00". null: none. */
+  defaultAllDayReminderMinutes: number | null
+  /** Look for new releases on GitHub and install them on quit. The only
+   *  request the app makes that is not to a calendar provider. */
+  checkForUpdates: boolean
 }
 
 export const DEFAULT_APP_SETTINGS: AppSettings = {
@@ -51,5 +60,18 @@ export const DEFAULT_APP_SETTINGS: AppSettings = {
   hourBlockSize: 'medium',
   secondaryTimezone: '',
   dragSnapMinutes: 15,
-  suggestionShowCalendarName: true
+  suggestionShowCalendarName: true,
+  // Ten minutes is what every timed event rang with before reminders existed.
+  defaultReminderMinutes: 10,
+  defaultAllDayReminderMinutes: null,
+  checkForUpdates: true
+}
+
+/**
+ * Whether `key` names a setting. The `settings` table also holds rows that are
+ * not settings - the encrypted `token:<accountId>` credentials - and the IPC
+ * handed those to the renderer and let it overwrite any key at all.
+ */
+export function isAppSettingKey(key: unknown): key is keyof AppSettings {
+  return typeof key === 'string' && Object.prototype.hasOwnProperty.call(DEFAULT_APP_SETTINGS, key)
 }

@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
-import { DateTime } from 'luxon'
-import { Trash2, X, Share2, MapPin, Link as LinkIcon, Users } from 'lucide-react'
+import { DateTime, IANAZone } from 'luxon'
+import { Trash2, X, Share2, MapPin, Link as LinkIcon, Users, Check } from 'lucide-react'
 import type {
   Calendar,
   CalendarEvent,
@@ -9,12 +9,20 @@ import type {
   Attendee,
   CreateEventInput,
   UpdateEventInput,
-  LunarRecurrenceSpec
+  LunarRecurrenceSpec,
+  RsvpResponse
 } from '@shared/event-model'
+import { invitationSelf } from '@shared/event-model'
 import type { TitleSuggestion } from '@shared/title-suggestions'
-import { endDateForTimes } from '@shared/time-format'
+import { endDateForTimes, formatClockTime } from '@shared/time-format'
 import { convertSolarToLunar, resolveLunarOccurrence } from '@shared/lunar-vietnam'
 import { DEFAULT_EVENT_COLOR } from '@shared/mini-calendar-grid'
+import { EVENT_COLORS } from '@shared/event-colors'
+import {
+  effectiveReminders,
+  LUNAR_ANNIVERSARY_REMINDER,
+  type EventReminder
+} from '@shared/reminders'
 import {
   DatePicker,
   TimePicker,
@@ -28,6 +36,9 @@ import {
   showFriendlyError
 } from '../components/ui'
 import { TitleSuggestInput } from './TitleSuggestInput'
+import { ReminderListField } from './ReminderListField'
+import { useDisplayPreferences } from '../context/DisplayPreferencesContext'
+import { zoneLabel, zoneOptions } from '../lib/time-zones'
 
 export interface EventEditorInitialData {
   occurrence?: ExpandedOccurrence
@@ -96,6 +107,31 @@ function toggleWeekday(days: string[], code: string): string[] {
   return days.includes(code) ? days.filter((d) => d !== code) : [...days, code]
 }
 
+/** The zone an event's times are typed in: its own, or this machine's for one luxon does not know. */
+function editZone(tzid: string | undefined): string {
+  return tzid && IANAZone.isValidZone(tzid) ? tzid : 'local'
+}
+
+/** A colour dot to pick; the chosen one carries a tick, as buttons cannot show an outline. */
+const ColorSwatch: React.FC<{ hex: string; selected: boolean; label: string; onClick: () => void }> = ({
+  hex,
+  selected,
+  label,
+  onClick
+}) => (
+  <button
+    type="button"
+    onClick={onClick}
+    className="gc-focus-ring flex h-5 w-5 shrink-0 cursor-pointer items-center justify-center rounded-full transition-transform hover:scale-110"
+    style={{ backgroundColor: hex }}
+    title={label}
+    aria-label={label}
+    aria-pressed={selected}
+  >
+    {selected && <Check className="h-3 w-3 stroke-[3.5] text-white" />}
+  </button>
+)
+
 export const EventEditorDialog: React.FC<EventEditorDialogProps> = ({
   isOpen,
   calendars,
@@ -106,7 +142,8 @@ export const EventEditorDialog: React.FC<EventEditorDialogProps> = ({
   onClose,
   onDraftChange
 }) => {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
+  const { defaultReminderMinutes, defaultAllDayReminderMinutes, timeFormat } = useDisplayPreferences()
   const isEditing = Boolean(data?.occurrence || data?.event)
   // Lunar anniversaries have no per-instance RRULE semantics — edits always apply
   // to the whole series, so they skip the recurring-scope prompt.
@@ -143,6 +180,18 @@ export const EventEditorDialog: React.FC<EventEditorDialogProps> = ({
 
   const [attendees, setAttendees] = useState<Attendee[]>([])
   const [attendeeInput, setAttendeeInput] = useState<string>('')
+  // An occurrence carries no guest list, so one opened from the grid has to
+  // load its event first. Until it has, the editor must not send attendees at
+  // all: it used to send the empty list it started with, and saving any event
+  // opened from the grid deleted its guests.
+  const [attendeesLoaded, setAttendeesLoaded] = useState<boolean>(true)
+  const attendeesTouchedRef = useRef(false)
+
+  // null: the event follows the default reminders.
+  const [reminders, setReminders] = useState<EventReminder[] | null>(null)
+  const [remindersTouched, setRemindersTouched] = useState<boolean>(false)
+  const remindersTouchedRef = useRef(false)
+  const [rsvpBusy, setRsvpBusy] = useState(false)
 
   const [isDirty, setIsDirty] = useState<boolean>(false)
   const [showDiscardConfirm, setShowDiscardConfirm] = useState<boolean>(false)
@@ -154,6 +203,9 @@ export const EventEditorDialog: React.FC<EventEditorDialogProps> = ({
     setIsDirty(false)
     setShowDiscardConfirm(false)
     setShareSuccess(false)
+    setRemindersTouched(false)
+    remindersTouchedRef.current = false
+    attendeesTouchedRef.current = false
 
     const userTz = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC'
     setTzid(userTz)
@@ -164,14 +216,24 @@ export const EventEditorDialog: React.FC<EventEditorDialogProps> = ({
       setNotes(occ.notes || '')
       setLocation(occ.location || '')
       setMeetingUrl(occ.meetingUrl || '')
-      setColor(occ.color || '')
+      // The grid hands over occurrences coloured with their calendar's colour
+      // when they have none of their own; keeping that would save it onto the
+      // event, which then no longer followed its calendar.
+      const calendarColor = calendars.find((c) => c.id === occ.calendarId)?.color
+      setColor(occ.color && occ.color.toLowerCase() !== calendarColor?.toLowerCase() ? occ.color : '')
       setCalendarId(occ.calendarId)
       setAllDay(occ.allDay)
       setTzid(occ.tzid || userTz)
       setAttendees([])
+      setAttendeesLoaded(false)
+      setReminders(null)
 
-      const startLocal = DateTime.fromISO(occ.startUtc, { zone: 'utc' }).setZone('local')
-      const endLocal = DateTime.fromISO(occ.endUtc, { zone: 'utc' }).setZone('local')
+      // Timed: the clock in the event's own zone. All-day: the stored UTC
+      // date - read in this machine's zone it was the day before west of UTC,
+      // and saving it moved the event back a day.
+      const shownIn = occ.allDay || occ.isLunar ? 'utc' : editZone(occ.tzid || userTz)
+      const startLocal = DateTime.fromISO(occ.startUtc, { zone: 'utc' }).setZone(shownIn)
+      const endLocal = DateTime.fromISO(occ.endUtc, { zone: 'utc' }).setZone(shownIn)
 
       setStartDateStr(startLocal.toFormat('yyyy-MM-dd'))
       setStartTimeStr(startLocal.toFormat('HH:mm'))
@@ -196,10 +258,15 @@ export const EventEditorDialog: React.FC<EventEditorDialogProps> = ({
       setCalendarId(evt.calendarId)
       setAllDay(evt.allDay)
       setTzid(evt.tzid || userTz)
+      // An event handed over without its guest list has it read, like an
+      // occurrence's, before a save may send guests.
       setAttendees(evt.attendees || [])
+      setAttendeesLoaded(evt.attendees !== undefined)
+      setReminders(evt.reminders ?? null)
 
-      const startLocal = DateTime.fromISO(evt.dtStartUtc, { zone: 'utc' }).setZone('local')
-      const endLocal = DateTime.fromISO(evt.dtEndUtc, { zone: 'utc' }).setZone('local')
+      const shownIn = evt.allDay || evt.lunarRule ? 'utc' : editZone(evt.tzid || userTz)
+      const startLocal = DateTime.fromISO(evt.dtStartUtc, { zone: 'utc' }).setZone(shownIn)
+      const endLocal = DateTime.fromISO(evt.dtEndUtc, { zone: 'utc' }).setZone(shownIn)
 
       setStartDateStr(startLocal.toFormat('yyyy-MM-dd'))
       setStartTimeStr(startLocal.toFormat('HH:mm'))
@@ -226,7 +293,7 @@ export const EventEditorDialog: React.FC<EventEditorDialogProps> = ({
         if (parts.UNTIL) {
           const untilLocal = DateTime.fromFormat(parts.UNTIL, "yyyyMMdd'T'HHmmss'Z'", {
             zone: 'utc'
-          }).setZone('local')
+          }).setZone(shownIn)
           setRecurrenceEnd('onDate')
           setRecurrenceUntil(untilLocal.isValid ? untilLocal.toFormat('yyyy-MM-dd') : '')
           setRecurrenceCount(10)
@@ -265,6 +332,8 @@ export const EventEditorDialog: React.FC<EventEditorDialogProps> = ({
       setRecurrenceUntil('')
       setRecurrenceCount(10)
       setAttendees([])
+      setAttendeesLoaded(true)
+      setReminders(null)
 
       const start = data?.initialStart || DateTime.local().set({ hour: 9, minute: 0, second: 0 })
       const end = data?.initialEnd || start.plus({ hours: 1 })
@@ -275,6 +344,35 @@ export const EventEditorDialog: React.FC<EventEditorDialogProps> = ({
       setEndTimeStr(end.toFormat('HH:mm'))
     }
   }, [isOpen, data, calendars])
+
+  // The rest of an event opened from the grid (or handed over without its
+  // guest list): its guests and reminders.
+  useEffect(() => {
+    const eventId = data?.occurrence?.eventId ?? (data?.event?.attendees === undefined ? data?.event?.id : undefined)
+    if (!isOpen || !eventId || !window.xrncal?.events?.getById) return
+    let cancelled = false
+    window.xrncal.events
+      .getById(eventId)
+      .then((res) => {
+        if (cancelled || !res) return
+        // Guests typed in before the list arrived are added to it, not
+        // swapped for it.
+        const loaded = res.event.attendees || []
+        setAttendees((typed) =>
+          attendeesTouchedRef.current
+            ? [...loaded, ...typed.filter((a) => !loaded.some((l) => l.email.toLowerCase() === a.email.toLowerCase()))]
+            : loaded
+        )
+        if (!remindersTouchedRef.current) setReminders(res.event.reminders ?? null)
+        setAttendeesLoaded(true)
+      })
+      .catch(() => {
+        // Attendees stay unloaded, so a save leaves them as they are.
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [isOpen, data])
 
   // The key handler has to be installed above the `isOpen` early return, like
   // every other hook - but the actions it fires are defined below it, where the
@@ -321,9 +419,9 @@ export const EventEditorDialog: React.FC<EventEditorDialogProps> = ({
   const suggestionTargetStartUtc = useMemo(() => {
     if (!startDateStr) return ''
     if (allDay || recurrencePreset === 'lunar-yearly') return `${startDateStr}T00:00:00.000Z`
-    const dt = DateTime.fromISO(`${startDateStr}T${startTimeStr}:00`, { zone: 'local' })
+    const dt = DateTime.fromISO(`${startDateStr}T${startTimeStr}:00`, { zone: editZone(tzid) })
     return dt.isValid ? dt.toUTC().toISO()! : ''
-  }, [startDateStr, startTimeStr, allDay, recurrencePreset])
+  }, [startDateStr, startTimeStr, allDay, recurrencePreset, tzid])
 
   const calendarOptions = useMemo(
     () =>
@@ -370,8 +468,9 @@ export const EventEditorDialog: React.FC<EventEditorDialogProps> = ({
       start = DateTime.fromISO(startDateStr, { zone: 'local' }).startOf('day')
       end = DateTime.fromISO((!lunarYearly && endDateStr) || startDateStr, { zone: 'local' }).endOf('day')
     } else {
-      start = DateTime.fromISO(`${startDateStr}T${startTimeStr}:00`, { zone: 'local' })
-      end = DateTime.fromISO(`${endDateStr}T${endTimeStr}:00`, { zone: 'local' })
+      // Typed in the event's zone; the grid behind draws this machine's.
+      start = DateTime.fromISO(`${startDateStr}T${startTimeStr}:00`, { zone: editZone(tzid) }).setZone('local')
+      end = DateTime.fromISO(`${endDateStr}T${endTimeStr}:00`, { zone: editZone(tzid) }).setZone('local')
     }
 
     if (!start.isValid || !end.isValid || end <= start) {
@@ -400,7 +499,8 @@ export const EventEditorDialog: React.FC<EventEditorDialogProps> = ({
     color,
     calendarId,
     calendars,
-    title
+    title,
+    tzid
   ])
 
   if (!isOpen) return null
@@ -479,6 +579,32 @@ export const EventEditorDialog: React.FC<EventEditorDialogProps> = ({
     else onClose()
   }
 
+  const inviteSelf = invitationSelf(attendees)
+
+  // A reply is sent on its own, not with Save: it is the one thing a guest may
+  // change, and it should not wait on (or be lost with) other edits.
+  const handleRespond = async (response: RsvpResponse) => {
+    const eventId = data?.occurrence?.eventId || data?.event?.id
+    if (!eventId || !window.xrncal?.events?.respond || rsvpBusy) return
+    setRsvpBusy(true)
+    try {
+      const updated = await window.xrncal.events.respond(eventId, response)
+      setAttendees(updated.attendees || [])
+      onDataChanged?.()
+    } catch (err) {
+      showFriendlyError(err, t('editor.rsvpFailed'))
+    } finally {
+      setRsvpBusy(false)
+    }
+  }
+
+  const changeReminders = (next: EventReminder[] | null) => {
+    setReminders(next)
+    setRemindersTouched(true)
+    remindersTouchedRef.current = true
+    setIsDirty(true)
+  }
+
   const handleAddAttendee = () => {
     const email = attendeeInput.trim()
     if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return
@@ -486,11 +612,13 @@ export const EventEditorDialog: React.FC<EventEditorDialogProps> = ({
       setAttendeeInput('')
       return
     }
+    attendeesTouchedRef.current = true
     handleFieldChange(setAttendees, [...attendees, { email, responseStatus: 'needsAction' as const }])
     setAttendeeInput('')
   }
 
   const handleRemoveAttendee = (email: string) => {
+    attendeesTouchedRef.current = true
     handleFieldChange(
       setAttendees,
       attendees.filter((a) => a.email !== email)
@@ -524,7 +652,9 @@ export const EventEditorDialog: React.FC<EventEditorDialogProps> = ({
       parts.push(`BYDAY=${recurrenceByDay.join(',')}`)
     }
     if (recurrenceEnd === 'onDate' && recurrenceUntil) {
-      const untilUtc = DateTime.fromISO(recurrenceUntil, { zone: 'local' }).endOf('day').toUTC()
+      // The series' last day ends in its own zone; an all-day one's dates are UTC.
+      const untilZone = allDay || isLunarYearly ? 'utc' : editZone(tzid)
+      const untilUtc = DateTime.fromISO(recurrenceUntil, { zone: untilZone }).endOf('day').toUTC()
       if (untilUtc.isValid) parts.push(`UNTIL=${untilUtc.toFormat("yyyyMMdd'T'HHmmss'Z'")}`)
     } else if (recurrenceEnd === 'afterCount' && recurrenceCount > 0) {
       parts.push(`COUNT=${recurrenceCount}`)
@@ -576,8 +706,8 @@ export const EventEditorDialog: React.FC<EventEditorDialogProps> = ({
       startIso = `${startDateStr}T00:00:00.000Z`
       endIso = `${(!isLunarYearly && endDateStr) || startDateStr}T23:59:59.999Z`
     } else {
-      const startLocal = DateTime.fromISO(`${startDateStr}T${startTimeStr}:00`, { zone: 'local' })
-      const endLocal = DateTime.fromISO(`${endDateStr}T${endTimeStr}:00`, { zone: 'local' })
+      const startLocal = DateTime.fromISO(`${startDateStr}T${startTimeStr}:00`, { zone: editZone(tzid) })
+      const endLocal = DateTime.fromISO(`${endDateStr}T${endTimeStr}:00`, { zone: editZone(tzid) })
       if (endLocal <= startLocal) {
         toast.warning(t('editor.endAfterStart'))
         return
@@ -597,14 +727,22 @@ export const EventEditorDialog: React.FC<EventEditorDialogProps> = ({
       notes: notes.trim() || undefined,
       location: location.trim() || undefined,
       meetingUrl: meetingUrl.trim() || undefined,
-      color: color || undefined,
+      // '' clears an event's own colour; undefined would keep it.
+      color,
       allDay: isLunarYearly ? true : allDay,
       tzid,
       dtStartUtc: startIso,
       dtEndUtc: endIso,
       rrule: isLunarYearly ? '' : buildRrule(),
       lunarRule: isLunarYearly ? lunarSpec! : null,
-      attendees
+      // An edit sends guests only when they were changed here, and only once
+      // the list has loaded. Sending the list untouched would overwrite
+      // whatever a sync brought in meanwhile - on an invitation, possibly the
+      // reply given on another device.
+      attendees: !isEditing || (attendeesTouchedRef.current && attendeesLoaded) ? attendees : undefined,
+      // An edit that leaves reminders alone must not send them: null would
+      // reset an event's own list to the default.
+      reminders: isEditing && !remindersTouched ? undefined : reminders
     }
 
     onSave({
@@ -695,6 +833,36 @@ export const EventEditorDialog: React.FC<EventEditorDialogProps> = ({
 
   const selectedCalendar = (calendars || []).find((c) => c.id === calendarId)
 
+  // The zone picker always offers the event's zone and this machine's, which
+  // the runtime's list may spell differently (Asia/Ho_Chi_Minh, Asia/Saigon).
+  const localZone = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC'
+  const timeZoneOptions = [
+    ...[tzid, localZone]
+      .filter((z, i, all) => z && all.indexOf(z) === i && !zoneOptions().some((o) => o.value === z))
+      .map((z) => ({ value: z, label: zoneLabel(z) })),
+    ...zoneOptions()
+  ]
+  // When the event's zone keeps another clock, say what its start is here.
+  const startInZone = DateTime.fromISO(`${startDateStr}T${startTimeStr}:00`, { zone: editZone(tzid) })
+  const startHere = startInZone.setZone('local')
+  const startHereLabel =
+    startInZone.isValid && startInZone.offset !== startHere.offset
+      ? `${formatClockTime(startHere, timeFormat)}, ${startHere.setLocale(i18n.language).toFormat('EEE d LLL')}`
+      : null
+  const ownColorKnown = !color || EVENT_COLORS.some((c) => c.hex === color.toLowerCase())
+  // What the scheduler would ring - which, on a calendar the user cannot edit
+  // (a feed, holidays, a shared calendar), is never the app's own default.
+  const shownReminders =
+    reminders ??
+    effectiveReminders(
+      undefined,
+      allDay || isLunarYearly,
+      selectedCalendar?.defaultReminders,
+      selectedCalendar?.isReadOnly
+        ? { timed: null, allDay: null }
+        : { timed: defaultReminderMinutes, allDay: defaultAllDayReminderMinutes }
+    )
+
   // New events created by clicking a slot dock as a side panel, on the side opposite
   // the click, so the panel never covers the spot the event was just created at.
   const isSidePanel = !isEditing && typeof data?.initialClientX === 'number'
@@ -753,6 +921,32 @@ export const EventEditorDialog: React.FC<EventEditorDialogProps> = ({
           </div>
 
           <div className="space-y-0">
+            {inviteSelf && (
+              <FormRow label={t('editor.rsvpLabel')} divider>
+                <div className="flex items-center gap-1 px-2.5 py-1">
+                  {(
+                    [
+                      ['accepted', 'editor.rsvpYes'],
+                      ['tentative', 'editor.rsvpMaybe'],
+                      ['declined', 'editor.rsvpNo']
+                    ] as const
+                  ).map(([response, label]) => (
+                    <button
+                      key={response}
+                      type="button"
+                      disabled={rsvpBusy}
+                      onClick={() => handleRespond(response)}
+                      className={`${
+                        inviteSelf.responseStatus === response ? 'gc-btn-primary' : 'gc-btn'
+                      } text-xs disabled:opacity-50`}
+                    >
+                      {t(label)}
+                    </button>
+                  ))}
+                </div>
+              </FormRow>
+            )}
+
             <FormRow label={t('editor.calendar')} divider>
               <CustomSelect
                 value={calendarId}
@@ -760,6 +954,29 @@ export const EventEditorDialog: React.FC<EventEditorDialogProps> = ({
                 options={calendarOptions}
                 placeholder={t('editor.chooseCalendar')}
               />
+            </FormRow>
+
+            <FormRow label={t('editor.color')} divider>
+              <div className="flex flex-wrap items-center gap-1.5 px-2.5 py-1">
+                <ColorSwatch
+                  hex={selectedCalendar?.color || DEFAULT_EVENT_COLOR}
+                  selected={!color}
+                  label={t('editor.colorDefault')}
+                  onClick={() => handleFieldChange(setColor, '')}
+                />
+                <span className="mx-0.5 h-4 w-px shrink-0 bg-hairline" aria-hidden />
+                {EVENT_COLORS.map((c) => (
+                  <ColorSwatch
+                    key={c.hex}
+                    hex={c.hex}
+                    selected={color.toLowerCase() === c.hex}
+                    label={t(`editor.colors.${c.name}`)}
+                    onClick={() => handleFieldChange(setColor, c.hex)}
+                  />
+                ))}
+                {/* A colour set elsewhere that is not one of these still shows as chosen. */}
+                {!ownColorKnown && <ColorSwatch hex={color} selected label={color} onClick={() => undefined} />}
+              </div>
             </FormRow>
 
             <FormRow label={t('editor.allDay')} divider>
@@ -815,6 +1032,34 @@ export const EventEditorDialog: React.FC<EventEditorDialogProps> = ({
               </FormRow>
             )}
 
+            {!allDay && !isLunarYearly && (
+              <FormRow label={t('editor.timeZone')} divider alignTop={Boolean(startHereLabel)}>
+                <div className="min-w-0">
+                  <CustomSelect
+                    value={tzid}
+                    onChange={(val) => handleFieldChange(setTzid, val)}
+                    options={timeZoneOptions}
+                    searchable
+                  />
+                  {startHereLabel && (
+                    <div className="px-2.5 pt-1 pb-0.5 text-[11px] text-muted">
+                      {t('editor.timeZoneHere', { time: startHereLabel })}
+                    </div>
+                  )}
+                </div>
+              </FormRow>
+            )}
+
+            <FormRow label={t('reminders.label')} divider alignTop>
+              <ReminderListField
+                reminders={shownReminders}
+                allDay={allDay || isLunarYearly}
+                isDefault={reminders === null}
+                onChange={changeReminders}
+                onUseDefault={() => changeReminders(null)}
+              />
+            </FormRow>
+
             <FormRow label={t('editor.location')} divider>
               <TextInput
                 value={location}
@@ -854,40 +1099,59 @@ export const EventEditorDialog: React.FC<EventEditorDialogProps> = ({
                           {a.isOrganizer && (
                             <span className="ml-1.5 text-[10px] text-muted">{t('editor.organizer')}</span>
                           )}
+                          {a.isSelf && !a.isOrganizer && (
+                            <span className="ml-1.5 text-[10px] text-muted">{t('editor.you')}</span>
+                          )}
+                          {a.role && (
+                            <span className="ml-1.5 text-[10px] text-muted">
+                              {t(
+                                a.role === 'optional'
+                                  ? 'editor.attendeeOptional'
+                                  : a.role === 'room'
+                                    ? 'editor.attendeeRoom'
+                                    : 'editor.attendeeResource'
+                              )}
+                            </span>
+                          )}
                         </span>
-                        <button
-                          type="button"
-                          onClick={() => handleRemoveAttendee(a.email)}
-                          className="shrink-0 cursor-pointer text-muted hover:text-today transition-colors"
-                        >
-                          <X className="h-3 w-3" />
-                        </button>
+                        {/* A guest cannot change the guest list, only answer. */}
+                        {!inviteSelf && (
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveAttendee(a.email)}
+                            className="shrink-0 cursor-pointer text-muted hover:text-today transition-colors"
+                          >
+                            <X className="h-3 w-3" />
+                          </button>
+                        )}
                       </div>
                     ))}
                   </div>
                 )}
-                <div className="flex items-center gap-1.5">
-                  <TextInput
-                    value={attendeeInput}
-                    onChange={setAttendeeInput}
-                    placeholder={t('editor.attendeesPlaceholder')}
-                    type="email"
-                    prefixIcon={<Users className="h-3.5 w-3.5" />}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') {
-                        e.preventDefault()
-                        handleAddAttendee()
-                      }
-                    }}
-                  />
-                  <button
-                    type="button"
-                    onClick={handleAddAttendee}
-                    className="gc-btn shrink-0 text-xs"
-                  >
-                    {t('common.add')}
-                  </button>
-                </div>
+                {!inviteSelf && (
+                  <div className="flex items-center gap-1.5">
+                    <TextInput
+                      value={attendeeInput}
+                      onChange={setAttendeeInput}
+                      placeholder={t('editor.attendeesPlaceholder')}
+                      type="email"
+                      prefixIcon={<Users className="h-3.5 w-3.5" />}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault()
+                          handleAddAttendee()
+                        }
+                      }}
+                    />
+                    <button
+                      type="button"
+                      onClick={handleAddAttendee}
+                      className="gc-btn shrink-0 text-xs"
+                    >
+                      {t('common.add')}
+                    </button>
+                  </div>
+                )}
               </div>
             </FormRow>
 
@@ -905,6 +1169,16 @@ export const EventEditorDialog: React.FC<EventEditorDialogProps> = ({
                 value={recurrencePreset}
                 onChange={(val) => {
                   handleFieldChange(setRecurrencePreset, val)
+                  // A new giỗ gets a day's notice unless the user has set an
+                  // all-day default of their own (or already picked reminders).
+                  if (
+                    val === 'lunar-yearly' &&
+                    !isEditing &&
+                    !remindersTouched &&
+                    defaultAllDayReminderMinutes === null
+                  ) {
+                    changeReminders([{ minutesBefore: LUNAR_ANNIVERSARY_REMINDER }])
+                  }
                   if (val === 'weekly' && recurrenceByDay.length === 0 && startDateStr) {
                     const d = DateTime.fromISO(startDateStr)
                     if (d.isValid) setRecurrenceByDay([WEEKDAY_CODES[d.weekday - 1]])

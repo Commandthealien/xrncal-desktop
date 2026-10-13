@@ -20,6 +20,8 @@ import type { ThemeConfig, ThemeMode } from '@shared/theme-mode'
 import type { DisplayPreferences } from '../context/DisplayPreferencesContext'
 import { NumberInput, CustomSelect, toast } from './ui'
 import { SNAP_STEP_OPTIONS } from '../dnd/resize-math'
+import { ALL_DAY_REMINDER_PRESETS, TIMED_REMINDER_PRESETS } from '@shared/reminders'
+import { reminderLabel } from '../lib/reminder-labels'
 import AppearanceSettings from './AppearanceSettings'
 
 /** `null` is the panel's root list; anything else is the one level below it. */
@@ -62,7 +64,13 @@ interface SettingsPanelProps {
   onToggleSuggestionShowCalendarName: (next: boolean) => void
   dragSnapMinutes: DisplayPreferences['dragSnapMinutes']
   onChangeDragSnapMinutes: (next: DisplayPreferences['dragSnapMinutes']) => void
+  defaultReminderMinutes: DisplayPreferences['defaultReminderMinutes']
+  onChangeDefaultReminderMinutes: (next: DisplayPreferences['defaultReminderMinutes']) => void
+  defaultAllDayReminderMinutes: DisplayPreferences['defaultAllDayReminderMinutes']
+  onChangeDefaultAllDayReminderMinutes: (next: DisplayPreferences['defaultAllDayReminderMinutes']) => void
   timezoneNames: string[]
+  checkForUpdates: boolean
+  onToggleCheckForUpdates: (next: boolean) => void
   autoHideHeader: boolean
   onToggleAutoHideHeader: (next: boolean) => void
 
@@ -283,6 +291,48 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = (props) => {
                   <Row label={t('settings.showMiniCalendar')}>
                     <Toggle on={props.showMiniCalendar} onChange={props.onToggleMiniCalendar} />
                   </Row>
+                  <Row label={t('settings.checkForUpdates')} hint={t('settings.checkForUpdatesHint')}>
+                    <Toggle on={props.checkForUpdates} onChange={props.onToggleCheckForUpdates} />
+                  </Row>
+                  {/* Full width, like the timezone list: the labels are long. */}
+                  <div className="border-b border-hairline py-3">
+                    <div className="text-sm text-primary">{t('reminders.settingsTimed')}</div>
+                    <div className="mt-0.5 mb-2 text-xs leading-snug text-muted">
+                      {t('reminders.settingsTimedHint')}
+                    </div>
+                    <CustomSelect
+                      value={props.defaultReminderMinutes === null ? '' : String(props.defaultReminderMinutes)}
+                      onChange={(v) => props.onChangeDefaultReminderMinutes(v === '' ? null : Number(v))}
+                      variant="boxed"
+                      options={[
+                        { value: '', label: t('reminders.none') },
+                        ...TIMED_REMINDER_PRESETS.map((m) => ({
+                          value: String(m),
+                          label: reminderLabel(t, { minutesBefore: m }, false, props.timeFormat)
+                        }))
+                      ]}
+                    />
+                  </div>
+                  <div className="py-3">
+                    <div className="text-sm text-primary">{t('reminders.settingsAllDay')}</div>
+                    <div className="mt-0.5 mb-2 text-xs leading-snug text-muted">
+                      {t('reminders.settingsAllDayHint')}
+                    </div>
+                    <CustomSelect
+                      value={
+                        props.defaultAllDayReminderMinutes === null ? '' : String(props.defaultAllDayReminderMinutes)
+                      }
+                      onChange={(v) => props.onChangeDefaultAllDayReminderMinutes(v === '' ? null : Number(v))}
+                      variant="boxed"
+                      options={[
+                        { value: '', label: t('reminders.none') },
+                        ...ALL_DAY_REMINDER_PRESETS.map((m) => ({
+                          value: String(m),
+                          label: reminderLabel(t, { minutesBefore: m }, true, props.timeFormat)
+                        }))
+                      ]}
+                    />
+                  </div>
                 </div>
               )}
 

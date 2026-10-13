@@ -25,12 +25,14 @@
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
     "test": "vitest run",
+    "test:e2e": "npm run build && playwright test",
     "pack:win": "npm run build && electron-builder --win --x64",
     "pack:linux": "npm run build && electron-builder --linux AppImage --x64",
     "app:install": "bash scripts/install-linux-app.sh",
     "app:update": "bash scripts/install-linux-app.sh"
   },
   "dependencies": {
+    "electron-updater": "^6.8.9",
     "i18next": "^24.2.2",
     "ical.js": "^2.2.1",
     "lucide-react": "^1.16.0",
@@ -43,6 +45,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^9.39.5",
+    "@playwright/test": "^1.64.0",
     "@tailwindcss/vite": "^4.0.9",
     "@types/luxon": "^3.7.4",
     "@types/node": "^22.13.9",

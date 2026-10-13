@@ -1,7 +1,8 @@
 import React, { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { AlertCircle, Check, ExternalLink, Loader2, Palette } from 'lucide-react'
-import type { CalendarAccount } from '@shared/event-model'
+import { AlertCircle, Check, ExternalLink, Loader2, Palette, RefreshCw, Trash2 } from 'lucide-react'
+import { DateTime } from 'luxon'
+import type { Calendar, CalendarAccount } from '@shared/event-model'
 import {
   classifyConnectError,
   groupCalendars,
@@ -9,7 +10,7 @@ import {
   normaliseServerInput,
   type ConnectProblem
 } from '../../lib/account-display'
-import { TextInput } from '../ui'
+import { TextInput, showFriendlyError } from '../ui'
 import HolidayCalendarToggle from '../HolidayCalendarToggle'
 import { CalendarRow, ColorPalette } from './CalendarToggle'
 import ProviderMark from './ProviderMark'
@@ -18,7 +19,7 @@ import type { AccountsPageProps, AddableProvider } from './accounts-nav'
 
 /* ---------------------------------------------------------------- picker */
 
-const PROVIDERS: AddableProvider[] = ['google', 'graph', 'icloud', 'caldav', 'holidays', 'local']
+const PROVIDERS: AddableProvider[] = ['google', 'graph', 'icloud', 'caldav', 'subscription', 'holidays', 'local']
 
 /** OneCalendar's "Account type" page: one choice, each with a line saying what it covers. */
 export const ProviderPickView: React.FC<AccountsPageProps> = (props) => {
@@ -35,9 +36,11 @@ export const ProviderPickView: React.FC<AccountsPageProps> = (props) => {
             props.push(
               provider === 'holidays'
                 ? { name: 'holidays' }
-                : provider === 'local'
-                  ? { name: 'local' }
-                  : { name: 'connect', provider }
+                : provider === 'subscription'
+                  ? { name: 'subscriptions' }
+                  : provider === 'local'
+                    ? { name: 'local' }
+                    : { name: 'connect', provider }
             )
           }
         />
@@ -245,6 +248,145 @@ export const HolidaysView: React.FC<AccountsPageProps> = (props) => {
           {t('common.done')}
         </button>
       </div>
+    </div>
+  )
+}
+
+/* --------------------------------------------------------- subscriptions */
+
+/**
+ * Calendars subscribed to by link: the ones there are, and a form for another.
+ * A feed is fetched before its calendar is created, so a link that is wrong
+ * fails here with the reason rather than leaving an empty calendar.
+ */
+export const SubscriptionsView: React.FC<AccountsPageProps> = (props) => {
+  const { t, i18n } = useTranslation()
+  const [url, setUrl] = useState('')
+  const [name, setName] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [refreshing, setRefreshing] = useState<string | null>(null)
+  const subscribed = props.calendars.filter((c) => c.subscriptionUrl)
+  const api = window.xrncal?.subscriptions
+
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!api || !url.trim() || busy) return
+    setBusy(true)
+    setError(null)
+    try {
+      await api.add(url.trim(), name.trim() || undefined)
+      setUrl('')
+      setName('')
+      await props.refresh()
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err)
+      setError(message.replace(/^Error invoking remote method '[^']+':\s*(Error:\s*)?/, ''))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const refreshOne = async (cal: Calendar) => {
+    if (!api) return
+    setRefreshing(cal.id)
+    try {
+      await api.refresh(cal.id)
+      await props.refresh()
+    } catch (err) {
+      showFriendlyError(err, t('subscriptions.refreshFailed'))
+    } finally {
+      setRefreshing(null)
+    }
+  }
+
+  const unsubscribe = async (cal: Calendar) => {
+    if (!window.xrncal?.calendars || !confirm(t('subscriptions.unsubscribeConfirm', { name: cal.name }))) return
+    try {
+      await window.xrncal.calendars.delete(cal.id)
+      await props.refresh()
+    } catch (err) {
+      showFriendlyError(err, t('subscriptions.unsubscribeFailed'))
+    }
+  }
+
+  return (
+    <div className="flex flex-col gap-4">
+      {subscribed.length > 0 && (
+        <div className="flex flex-col gap-0.5">
+          {subscribed.map((cal) => (
+            <div key={cal.id} className="flex items-center gap-2.5 px-2 py-1.5">
+              <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: cal.color }} />
+              <span className="min-w-0 flex-1">
+                <span className="block truncate text-sm text-primary">{cal.name}</span>
+                <span className="block truncate text-xs text-muted">
+                  {hostOf(cal.subscriptionUrl!)} ·{' '}
+                  {cal.subscriptionRefreshedAt
+                    ? t('subscriptions.refreshed', {
+                        when: DateTime.fromISO(cal.subscriptionRefreshedAt).setLocale(i18n.language).toRelative()
+                      })
+                    : t('subscriptions.neverRefreshed')}
+                </span>
+              </span>
+              <button
+                type="button"
+                className="gc-icon-btn h-7 w-7"
+                title={t('subscriptions.refresh')}
+                aria-label={t('subscriptions.refresh')}
+                disabled={refreshing === cal.id}
+                onClick={() => void refreshOne(cal)}
+              >
+                <RefreshCw className={`h-3.5 w-3.5 ${refreshing === cal.id ? 'animate-spin' : ''}`} />
+              </button>
+              <button
+                type="button"
+                className="gc-icon-btn h-7 w-7 hover:text-today"
+                title={t('subscriptions.unsubscribe')}
+                aria-label={t('subscriptions.unsubscribe')}
+                onClick={() => void unsubscribe(cal)}
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+
+      <form className="flex flex-col gap-3" onSubmit={submit} noValidate>
+        <p className="text-xs text-muted">{t('subscriptions.intro')}</p>
+        <TextInput
+          variant="boxed"
+          label={t('subscriptions.url')}
+          placeholder={t('subscriptions.urlPlaceholder')}
+          value={url}
+          onChange={setUrl}
+          autoFocus
+        />
+        <TextInput
+          variant="boxed"
+          label={t('subscriptions.name')}
+          placeholder={t('subscriptions.namePlaceholder')}
+          value={name}
+          onChange={setName}
+        />
+        {error && (
+          <div
+            className="flex items-start gap-2 border border-hairline bg-hover/40 px-3 py-2.5 text-xs"
+            style={{ borderRadius: 'var(--radius-control)' }}
+          >
+            <AlertCircle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-today" />
+            <span className="min-w-0 text-primary">
+              {t('subscriptions.failed')}: {error}
+            </span>
+          </div>
+        )}
+        <div className="flex justify-end">
+          <button type="submit" className="gc-btn-primary" disabled={busy || !url.trim()}>
+            {busy && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+            {busy ? t('subscriptions.subscribing') : t('subscriptions.subscribe')}
+          </button>
+        </div>
+      </form>
     </div>
   )
 }

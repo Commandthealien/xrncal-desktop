@@ -1,9 +1,10 @@
 import React, { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useTranslation } from 'react-i18next'
-import { ChevronDown, ChevronRight, Eye, MoreHorizontal, Plus, Settings2, Focus } from 'lucide-react'
+import { AlertTriangle, ChevronDown, ChevronRight, Eye, MoreHorizontal, Plus, RefreshCw, Settings2, Focus } from 'lucide-react'
 import type { Calendar, CalendarAccount } from '@shared/event-model'
 import {
+  classifySyncError,
   groupCalendars,
   showAllChanges,
   showOnlyChanges,
@@ -11,6 +12,8 @@ import {
 } from '../../lib/account-display'
 import { CalendarRow, ColorPalette } from '../accounts/CalendarToggle'
 import ProviderMark from '../accounts/ProviderMark'
+import { showFriendlyError } from '../ui'
+import { useSyncStatus } from '../../hooks/use-sync-status'
 
 interface SidebarCalendarsProps {
   accounts: CalendarAccount[]
@@ -18,7 +21,8 @@ interface SidebarCalendarsProps {
   onToggleVisibility: (cal: Calendar) => void
   onSetVisibility: (changes: { id: string; isVisible: boolean }[]) => void
   onChangeColor: (cal: Calendar, hex: string) => void
-  /** Opens the accounts dialog, on this account's page when one is given. */
+  /** Opens the accounts dialog, on this account's page when one is given -
+   *  or, for `'subscriptions'`, on the subscriptions page. */
   onOpenAccount: (accountId: string | null) => void
   onAddAccount: () => void
 }
@@ -52,6 +56,7 @@ export const SidebarCalendars: React.FC<SidebarCalendarsProps> = ({
   const [menuFor, setMenuFor] = useState<string | null>(null)
   const groups = groupCalendars(accounts, calendars).filter((g) => g.calendars.length > 0)
   const anyHidden = calendars.some((c) => !c.isVisible)
+  const accountErrors = useSyncStatus().status?.accountErrors ?? {}
 
   const toggleGroup = (key: string) => {
     setCollapsed((prev) => {
@@ -72,7 +77,9 @@ export const SidebarCalendars: React.FC<SidebarCalendarsProps> = ({
       ? t('calendarList.thisComputer')
       : group.kind === 'holidays'
         ? t('holidays.title')
-        : group.account?.name || t(`addAccount.providers.${group.kind}.title`)
+        : group.kind === 'subscription'
+          ? t('subscriptions.title')
+          : group.account?.name || t(`addAccount.providers.${group.kind}.title`)
 
   return (
     <section className="flex min-h-0 flex-col gap-1" aria-label={t('calendarList.title')}>
@@ -98,19 +105,33 @@ export const SidebarCalendars: React.FC<SidebarCalendarsProps> = ({
 
       {groups.map((group) => {
         const isCollapsed = collapsed.has(group.key)
+        const syncError = group.account ? accountErrors[group.account.id] : undefined
         return (
           <div key={group.key}>
-            <button
-              type="button"
-              onClick={() => toggleGroup(group.key)}
-              className="flex w-full items-center gap-1.5 px-1.5 py-1 text-left text-[11px] font-medium text-muted transition-colors hover:text-primary"
-              title={group.account?.email || undefined}
-              aria-expanded={!isCollapsed}
-            >
-              {isCollapsed ? <ChevronRight className="h-3 w-3 shrink-0" /> : <ChevronDown className="h-3 w-3 shrink-0" />}
-              <ProviderMark kind={group.kind} size="sm" />
-              <span className="min-w-0 flex-1 truncate">{groupLabel(group)}</span>
-            </button>
+            <div className="flex items-center">
+              <button
+                type="button"
+                onClick={() => toggleGroup(group.key)}
+                className="flex min-w-0 flex-1 items-center gap-1.5 px-1.5 py-1 text-left text-[11px] font-medium text-muted transition-colors hover:text-primary"
+                title={group.account?.email || undefined}
+                aria-expanded={!isCollapsed}
+              >
+                {isCollapsed ? <ChevronRight className="h-3 w-3 shrink-0" /> : <ChevronDown className="h-3 w-3 shrink-0" />}
+                <ProviderMark kind={group.kind} size="sm" />
+                <span className="min-w-0 flex-1 truncate">{groupLabel(group)}</span>
+              </button>
+              {syncError && (
+                <button
+                  type="button"
+                  className="gc-icon-btn mr-1 h-5 w-5 shrink-0 text-today"
+                  title={t(`accounts.syncProblems.${classifySyncError(syncError)}`)}
+                  aria-label={t(`accounts.syncProblems.${classifySyncError(syncError)}`)}
+                  onClick={() => onOpenAccount(group.account!.id)}
+                >
+                  <AlertTriangle className="h-3 w-3" />
+                </button>
+              )}
+            </div>
 
             {!isCollapsed &&
               group.calendars.map((cal) => (
@@ -156,14 +177,29 @@ export const SidebarCalendars: React.FC<SidebarCalendarsProps> = ({
                         }}
                       />
                       <div className="my-1 border-t border-hairline" />
+                      {cal.subscriptionUrl && (
+                        <MenuItem
+                          icon={<RefreshCw className="h-3.5 w-3.5" />}
+                          onClick={() => {
+                            setMenuFor(null)
+                            window.xrncal?.subscriptions
+                              ?.refresh(cal.id)
+                              .catch((err) => showFriendlyError(err, t('subscriptions.refreshFailed')))
+                          }}
+                        >
+                          {t('subscriptions.refresh')}
+                        </MenuItem>
+                      )}
                       <MenuItem
                         icon={<Settings2 className="h-3.5 w-3.5" />}
                         onClick={() => {
                           setMenuFor(null)
-                          onOpenAccount(group.account?.id ?? null)
+                          onOpenAccount(group.kind === 'subscription' ? group.key : (group.account?.id ?? null))
                         }}
                       >
-                        {t('calendarList.accountSettings')}
+                        {group.kind === 'subscription'
+                          ? t('subscriptions.manage')
+                          : t('calendarList.accountSettings')}
                       </MenuItem>
                     </CalendarMenu>
                   }

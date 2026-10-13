@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest'
-import { initDatabase, closeDatabase } from '../src/main/db/database'
+import { initDatabase, closeDatabase, runMigrations } from '../src/main/db/database'
 import type { ISqliteDatabase } from '../src/main/db/sqlite-driver'
 import { EventsRepo } from '../src/main/db/repos/events-repo'
 
@@ -83,6 +83,78 @@ describe('SQLite FTS5 Full-Text Search and Attendees', () => {
     // Delete event
     repo.deleteEvent(created.id)
     expect(repo.searchEvents('Kickoff')).toHaveLength(0)
+  })
+
+  it('finds words without their diacritics, which LIKE cannot', () => {
+    repo.createEvent({
+      calendarId: calId,
+      title: 'Giỗ ông nội',
+      location: 'Hà Nội',
+      dtStartUtc: '2026-08-24T01:00:00.000Z',
+      dtEndUtc: '2026-08-24T02:00:00.000Z'
+    })
+
+    expect(repo.searchEvents('gio').map((e) => e.title)).toEqual(['Giỗ ông nội'])
+    expect(repo.searchEvents('ha noi').map((e) => e.title)).toEqual(['Giỗ ông nội'])
+    // A match inside a word still comes from LIKE.
+    expect(repo.searchEvents('ội').map((e) => e.title)).toEqual(['Giỗ ông nội'])
+  })
+
+  it('leaves the index alone when a row changes but its text does not', () => {
+    const created = repo.createEvent({
+      calendarId: calId,
+      title: 'Standup',
+      dtStartUtc: '2026-08-25T01:00:00.000Z',
+      dtEndUtc: '2026-08-25T01:15:00.000Z'
+    })
+    const indexed = () => db.prepare('SELECT COUNT(*) AS n FROM events_fts_docsize').get<{ n: number }>()!.n
+
+    for (let i = 0; i < 5; i++) {
+      db.prepare('UPDATE events SET etag = ?, title = title WHERE id = ?').run(`"e${i}"`, created.id)
+    }
+    expect(indexed()).toBe(1)
+
+    repo.updateEvent(created.id, { title: 'Daily sync' })
+    repo.createEvent({
+      calendarId: calId,
+      title: 'Gone soon',
+      dtStartUtc: '2026-08-26T01:00:00.000Z',
+      dtEndUtc: '2026-08-26T01:15:00.000Z'
+    })
+    db.prepare("DELETE FROM events WHERE title = 'Gone soon'").run()
+
+    expect(indexed()).toBe(1)
+    expect(repo.searchEvents('standup')).toHaveLength(0)
+    expect(repo.searchEvents('daily')).toHaveLength(1)
+    expect(() => db.exec("INSERT INTO events_fts(events_fts, rank) VALUES ('integrity-check', 1)")).not.toThrow()
+  })
+
+  it('replaces the old index, which never matched, and indexes what is already there', () => {
+    // Back to schema 18, with migration 002's contentless index.
+    db.exec(`
+      DROP TRIGGER trg_events_fts_insert;
+      DROP TRIGGER trg_events_fts_update;
+      DROP TRIGGER trg_events_fts_delete;
+      DROP TABLE events_fts;
+      CREATE VIRTUAL TABLE events_fts USING fts5(event_id UNINDEXED, title, notes, location, content='');
+      CREATE TRIGGER trg_events_fts_update AFTER UPDATE ON events BEGIN
+        DELETE FROM events_fts WHERE event_id = old.id;
+        INSERT INTO events_fts(event_id, title, notes, location)
+        VALUES (new.id, new.title, COALESCE(new.notes, ''), COALESCE(new.location, ''));
+      END;
+      DELETE FROM schema_migrations WHERE version >= 19;
+    `)
+    repo.createEvent({
+      calendarId: calId,
+      title: 'Họp phụ huynh',
+      dtStartUtc: '2026-08-27T01:00:00.000Z',
+      dtEndUtc: '2026-08-27T02:00:00.000Z'
+    })
+    expect(repo.searchEvents('hop')).toHaveLength(0)
+
+    runMigrations(db)
+
+    expect(repo.searchEvents('hop').map((e) => e.title)).toEqual(['Họp phụ huynh'])
   })
 
   it('should persist and retrieve attendees with response statuses', () => {

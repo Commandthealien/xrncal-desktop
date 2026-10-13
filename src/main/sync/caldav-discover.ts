@@ -76,13 +76,32 @@ export function extractXmlTagValue(xml: string, tagName: string): string | undef
   return match ? match[1].trim() : undefined
 }
 
+const XML_ENTITIES: Record<string, string> = { lt: '<', gt: '>', quot: '"', apos: "'", amp: '&' }
+
+/**
+ * The text of an element, with XML's escaping undone; extractXmlTagValue()
+ * returns the raw markup, which is what nested elements need. Servers escape
+ * `&`, `<` and `>` in text - calendar-data above all, where an event titled
+ * "R&D" arrived as "R&amp;D" and went back to the server that way on the next
+ * edit. One pass, so "&amp;lt;" stays "&lt;". A CDATA section is returned as is.
+ */
+export function extractXmlText(xml: string, tagName: string): string | undefined {
+  const raw = extractXmlTagValue(xml, tagName)
+  if (raw === undefined) return undefined
+  const cdata = raw.match(/^<!\[CDATA\[([\s\S]*)\]\]>$/)
+  if (cdata) return cdata[1]
+  return raw.replace(/&(?:#(\d+)|#x([0-9a-fA-F]+)|(lt|gt|quot|apos|amp));/g, (_, dec, hex, name) =>
+    dec ? String.fromCodePoint(Number(dec)) : hex ? String.fromCodePoint(parseInt(hex, 16)) : XML_ENTITIES[name]
+  )
+}
+
 /**
  * The href a DAV property points at, e.g. the `/sonn/` in
  * `<current-user-principal><href>/sonn/</href></current-user-principal>`.
  */
 export function extractPropHref(xml: string, propName: string): string | undefined {
   const inner = extractXmlTagValue(xml, propName)
-  return inner ? extractXmlTagValue(inner, 'href') : undefined
+  return inner ? extractXmlText(inner, 'href') : undefined
 }
 
 /** An href from a multistatus, made absolute against the URL that answered. */
@@ -103,7 +122,7 @@ export function parseCalDavMultistatus(xml: string, baseUrl: string): CalDavCale
   const calendars: CalDavCalendarDescriptor[] = []
 
   for (const resp of responses) {
-    const href = extractXmlTagValue(resp, 'href')
+    const href = extractXmlText(resp, 'href')
     if (!href) continue
 
     // Check if resource is a calendar (resourcetype has <calendar/>)
@@ -112,10 +131,10 @@ export function parseCalDavMultistatus(xml: string, baseUrl: string): CalDavCale
 
     if (!isCalendar) continue
 
-    const displayName = extractXmlTagValue(resp, 'displayname') || 'CalDAV Calendar'
-    const color = extractXmlTagValue(resp, 'calendar-color') || extractXmlTagValue(resp, 'color')
-    const ctag = extractXmlTagValue(resp, 'getctag')
-    const syncToken = extractXmlTagValue(resp, 'sync-token')
+    const displayName = extractXmlText(resp, 'displayname') || 'CalDAV Calendar'
+    const color = extractXmlText(resp, 'calendar-color') || extractXmlText(resp, 'color')
+    const ctag = extractXmlText(resp, 'getctag')
+    const syncToken = extractXmlText(resp, 'sync-token')
 
     // Check if calendar is read-only (<current-user-privilege-set> lacks <write/>)
     const privs = extractXmlTagValue(resp, 'current-user-privilege-set') || ''

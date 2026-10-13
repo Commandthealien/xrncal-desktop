@@ -1,5 +1,5 @@
 import type { ISqliteDatabase } from '../sqlite-driver'
-import { DEFAULT_APP_SETTINGS, type AppSettings } from '@shared/settings-contract'
+import { DEFAULT_APP_SETTINGS, isAppSettingKey, type AppSettings } from '@shared/settings-contract'
 
 export class SettingsRepo {
   constructor(private db: ISqliteDatabase) {}
@@ -9,6 +9,8 @@ export class SettingsRepo {
     const settings: Record<string, any> = { ...DEFAULT_APP_SETTINGS }
 
     for (const row of rows) {
+      // Credentials live in this table too; they are not settings.
+      if (!isAppSettingKey(row.key)) continue
       try {
         settings[row.key] = JSON.parse(row.value)
       } catch {

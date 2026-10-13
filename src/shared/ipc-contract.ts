@@ -7,6 +7,7 @@ import type {
   CalendarAccount,
   CalendarEvent,
   EventException,
+  RsvpResponse,
   ExpandedOccurrence,
   CreateEventInput,
   UpdateEventInput,
@@ -50,9 +51,18 @@ export const IPC_CHANNELS = {
   SYNC: {
     TRIGGER_NOW: 'xrncal:sync:trigger-now',
     GET_STATUS: 'xrncal:sync:get-status',
-    /** main -> renderer. The only push channel in the app; everything else is
-     *  invoke/handle. Sent after a background sync that actually changed rows. */
+    /** main -> renderer, one of the two push channels (with REMINDERS.CHANGED);
+     *  everything else is invoke/handle. Sent after a background sync that
+     *  actually changed rows. */
     CHANGED: 'xrncal:sync:changed'
+  },
+  REMINDERS: {
+    LIST_ACTIVE: 'xrncal:reminders:list-active',
+    DISMISS: 'xrncal:reminders:dismiss',
+    SNOOZE: 'xrncal:reminders:snooze',
+    /** main -> renderer, carrying the new list: a reminder rang, or one was
+     *  dismissed, snoozed or ran out. */
+    CHANGED: 'xrncal:reminders:changed'
   },
   CALENDAR: {
     LIST: 'xrncal:calendar:list',
@@ -77,7 +87,9 @@ export const IPC_CHANNELS = {
     SUGGEST_TITLES: 'xrncal:event:suggest-titles',
     SHARE_ICS: 'xrncal:event:share-ics',
     LIST_CONFLICTS: 'xrncal:event:list-conflicts',
-    RESOLVE_CONFLICT: 'xrncal:event:resolve-conflict'
+    RESOLVE_CONFLICT: 'xrncal:event:resolve-conflict',
+    RESPOND: 'xrncal:event:respond',
+    RESTORE: 'xrncal:event:restore'
   },
   ICS: {
     IMPORT: 'xrncal:ics:import',
@@ -92,6 +104,10 @@ export const IPC_CHANNELS = {
   HOLIDAYS: {
     SUBSCRIBE: 'xrncal:holidays:subscribe',
     UNSUBSCRIBE: 'xrncal:holidays:unsubscribe'
+  },
+  SUBSCRIPTIONS: {
+    ADD: 'xrncal:subscriptions:add',
+    REFRESH: 'xrncal:subscriptions:refresh'
   }
 } as const
 
@@ -120,6 +136,13 @@ export interface IcsImportResult {
   importedCount: number
   errorCount: number
   message?: string
+}
+
+/** A reminder that has rung and is still waiting for the user. */
+export interface ActiveReminder {
+  /** The occurrence id: one entry per occurrence, however many reminders it has. */
+  key: string
+  occurrence: ExpandedOccurrence
 }
 
 export interface ConnectCalDavInput {
@@ -163,6 +186,13 @@ export interface XrncalAPI {
     /** Fires when a background sync changed the database. Returns an unsubscribe. */
     onChanged: (callback: () => void) => () => void
   }
+  reminders: {
+    listActive: () => Promise<ActiveReminder[]>
+    dismiss: (key: string) => Promise<void>
+    /** Take it off screen and ring it again in `minutes`. */
+    snooze: (key: string, minutes: number) => Promise<void>
+    onChanged: (callback: (active: ActiveReminder[]) => void) => () => void
+  }
   calendars: {
     list: () => Promise<Calendar[]>
     create: (data: { name: string; color: string }) => Promise<Calendar>
@@ -189,6 +219,14 @@ export interface XrncalAPI {
     shareIcs: (eventId: string) => Promise<{ success: boolean; filePath?: string; icsContent?: string; message?: string }>
     listConflicts: () => Promise<SyncConflict[]>
     resolveConflict: (eventId: string, resolution: 'keepMine' | 'keepTheirs') => Promise<boolean>
+    /** Answer an invitation; the reply reaches the organizer on the next sync. */
+    respond: (eventId: string, response: RsvpResponse) => Promise<CalendarEvent>
+    /** Undo a delete from a snapshot taken by `getById` before it. With
+     *  `occurrenceStartUtc`, only that one deleted occurrence comes back. */
+    restore: (
+      snapshot: { event: CalendarEvent; exceptions: EventException[] },
+      occurrenceStartUtc?: string
+    ) => Promise<CalendarEvent>
   }
   ics: {
     importIcs: (targetCalendarId: string, icsContent: string) => Promise<IcsImportResult>
@@ -203,5 +241,12 @@ export interface XrncalAPI {
   holidays: {
     subscribe: (type: 'vietnam' | 'international') => Promise<{ calendarId: string; count: number }>
     unsubscribe: (type: 'vietnam' | 'international') => Promise<boolean>
+  }
+  /** Calendars subscribed to by .ics / webcal link. Removing one is deleting
+   *  the calendar (`calendars.delete`). */
+  subscriptions: {
+    add: (url: string, name?: string) => Promise<Calendar>
+    /** Fetch the feed now; resolves to how many events it stored. */
+    refresh: (calendarId: string) => Promise<number>
   }
 }

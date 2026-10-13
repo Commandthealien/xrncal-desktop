@@ -13,9 +13,12 @@ import type {
   LunarRecurrenceSpec,
   MaterializeLunarInput,
   DetachLunarInput,
-  SyncConflict
+  SyncConflict,
+  RsvpResponse
 } from '@shared/event-model'
+import { invitationSelf } from '@shared/event-model'
 import type { TitleSample } from '@shared/title-suggestions'
+import { parseRemindersJson, serializeReminders, type EventReminder } from '@shared/reminders'
 import { resolveLunarOccurrence } from '@shared/lunar-vietnam'
 import { expandOccurrences } from '@shared/expand-occurrences'
 import { DateTime } from 'luxon'
@@ -46,6 +49,7 @@ interface EventRow {
   lunar_source_event_id: string | null
   color: string | null
   meeting_url: string | null
+  reminders: string | null
   etag: string | null
   dirty: number
   has_conflict: number
@@ -109,6 +113,7 @@ function mapRowToEvent(row: EventRow): CalendarEvent {
     lunarSourceEventId: row.lunar_source_event_id || undefined,
     color: row.color || undefined,
     meetingUrl: row.meeting_url || undefined,
+    reminders: parseRemindersJson(row.reminders),
     etag: row.etag || undefined,
     dirty: row.dirty === 1,
     hasConflict: row.has_conflict === 1,
@@ -138,6 +143,15 @@ function mapRowToException(row: ExceptionRow): EventException {
   }
 }
 
+/** A guest list compared for change: who, in what role, with what answer. */
+function guestListKey(attendees: readonly Attendee[] | undefined): string {
+  return JSON.stringify(
+    (attendees || [])
+      .map((a) => [a.email.toLowerCase(), a.role ?? '', a.responseStatus ?? 'needsAction', a.displayName ?? ''])
+      .sort((x, y) => x[0].localeCompare(y[0]))
+  )
+}
+
 export class EventsRepo {
   constructor(private db: ISqliteDatabase) {}
 
@@ -154,29 +168,42 @@ export class EventsRepo {
   private getAttendeesForEvent(eventId: string): Attendee[] {
     try {
       const rows = this.db
-        .prepare('SELECT email, display_name, response_status, is_organizer FROM attendees WHERE event_id = ?')
-        .all<any>(eventId)
+        .prepare(
+          'SELECT email, display_name, response_status, is_organizer, is_self, role FROM attendees WHERE event_id = ?'
+        )
+        .all<{
+          email: string
+          display_name: string | null
+          response_status: Attendee['responseStatus']
+          is_organizer: number
+          is_self: number
+          role: Attendee['role'] | null
+        }>(eventId)
 
       return rows.map((r) => ({
         email: r.email,
         displayName: r.display_name || undefined,
         responseStatus: r.response_status,
-        isOrganizer: r.is_organizer === 1
+        isOrganizer: r.is_organizer === 1,
+        isSelf: r.is_self === 1,
+        role: r.role || undefined
       }))
     } catch {
       return []
     }
   }
 
-  private saveAttendees(eventId: string, attendees?: Attendee[]): void {
+  /** Replace an event's guest list. Also how the sync engines store the list
+   *  a provider sent. */
+  replaceAttendees(eventId: string, attendees?: Attendee[]): void {
     try {
       this.db.prepare('DELETE FROM attendees WHERE event_id = ?').run(eventId)
       if (!attendees || attendees.length === 0) return
 
       const now = new Date().toISOString()
       const insertStmt = this.db.prepare(
-        `INSERT INTO attendees (id, event_id, email, display_name, response_status, is_organizer, created_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?)`
+        `INSERT INTO attendees (id, event_id, email, display_name, response_status, is_organizer, is_self, role, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
       )
 
       for (const att of attendees) {
@@ -188,12 +215,67 @@ export class EventsRepo {
           att.displayName || null,
           att.responseStatus || 'needsAction',
           att.isOrganizer ? 1 : 0,
+          att.isSelf ? 1 : 0,
+          att.role || null,
           now
         )
       }
     } catch {
       // Attendees are best-effort: the event itself is already saved.
     }
+  }
+
+  private saveAttendees(eventId: string, attendees?: Attendee[]): void {
+    this.replaceAttendees(eventId, attendees)
+  }
+
+  /**
+   * Answer an invitation. The reply goes on the account's own attendee row at
+   * once, so the editor and the reminders reflect it, and waits in
+   * `rsvp_pending` for the next sync to deliver it.
+   */
+  respondToInvite(eventId: string, response: RsvpResponse): CalendarEvent {
+    const found = this.getEventById(eventId)
+    if (!found) throw new Error(`Event not found: ${eventId}`)
+    this.checkReadOnlyCalendar(found.event.calendarId)
+    if (!invitationSelf(found.event.attendees)) {
+      throw new Error('This event is not an invitation to you.')
+    }
+
+    const now = new Date().toISOString()
+    this.db.transaction(() => {
+      this.db
+        .prepare('UPDATE attendees SET response_status = ? WHERE event_id = ? AND is_self = 1')
+        .run(response, eventId)
+      this.db
+        .prepare('UPDATE events SET rsvp_pending = ?, updated_at = ? WHERE id = ?')
+        .run(response, now, eventId)
+    })()
+    return this.getEventById(eventId)!.event
+  }
+
+  /** Replies in a calendar that the provider has not been told about yet. */
+  listPendingRsvps(calendarId: string): { event: CalendarEvent; response: RsvpResponse }[] {
+    const rows = this.db
+      .prepare(
+        `SELECT id, rsvp_pending FROM events
+         WHERE calendar_id = ? AND rsvp_pending IS NOT NULL AND is_deleted = 0`
+      )
+      .all<{ id: string; rsvp_pending: RsvpResponse }>(calendarId)
+    const out: { event: CalendarEvent; response: RsvpResponse }[] = []
+    for (const row of rows) {
+      const found = this.getEventById(row.id)
+      if (found) out.push({ event: found.event, response: row.rsvp_pending })
+    }
+    return out
+  }
+
+  /** The provider has the reply. A newer etag, when it sent one, keeps the
+   *  next update's If-Match from failing on a change that was our own. */
+  markRsvpSent(eventId: string, etag?: string | null): void {
+    this.db
+      .prepare('UPDATE events SET rsvp_pending = NULL, etag = COALESCE(?, etag) WHERE id = ?')
+      .run(etag ?? null, eventId)
   }
 
   getEventById(id: string): { event: CalendarEvent; exceptions: EventException[] } | null {
@@ -217,11 +299,13 @@ export class EventsRepo {
     return rows.map(mapRowToException)
   }
 
-  createEvent(input: CreateEventInput, options?: { allowReadOnly?: boolean }): CalendarEvent {
+  /** `options.id` fixes the new row's id - a refreshed feed keeps each event's
+   *  id, so selection and fired reminders survive the refresh. */
+  createEvent(input: CreateEventInput, options?: { allowReadOnly?: boolean; id?: string }): CalendarEvent {
     this.checkReadOnlyCalendar(input.calendarId, options?.allowReadOnly === true)
 
     const now = new Date().toISOString()
-    const id = `evt_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`
+    const id = options?.id || `evt_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`
     const uid = input.uid || `${id}@xrncal.calendar`
     const tzid = input.tzid || 'UTC'
     const allDay = input.allDay ? 1 : 0
@@ -234,8 +318,8 @@ export class EventsRepo {
           id, calendar_id, uid, title, notes, location,
           dtstart_utc, dtend_utc, tzid, all_day, rrule, exdate,
           lunar_rule, lunar_source_event_id,
-          color, meeting_url, dirty, is_deleted, created_at, updated_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+          color, meeting_url, reminders, dirty, is_deleted, created_at, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
       )
       .run(
         id,
@@ -254,6 +338,7 @@ export class EventsRepo {
         input.lunarSourceEventId || null,
         input.color || null,
         input.meetingUrl || null,
+        serializeReminders(input.reminders),
         dirty,
         isDeleted,
         now,
@@ -304,6 +389,7 @@ export class EventsRepo {
           : null
     const color = input.color !== undefined ? input.color : (existing.color || null)
     const meetingUrl = input.meetingUrl !== undefined ? input.meetingUrl : (existing.meetingUrl || null)
+    const reminders = serializeReminders(input.reminders !== undefined ? input.reminders : existing.reminders)
     const isDeleted = (input.isDeleted !== undefined ? input.isDeleted : existing.isDeleted) ? 1 : 0
 
     this.db
@@ -312,7 +398,7 @@ export class EventsRepo {
           calendar_id = ?,
           title = ?, notes = ?, location = ?, dtstart_utc = ?, dtend_utc = ?,
           tzid = ?, all_day = ?, rrule = ?, exdate = ?, lunar_rule = ?, color = ?,
-          meeting_url = ?, dirty = 1, is_deleted = ?, updated_at = ?
+          meeting_url = ?, reminders = ?, dirty = 1, is_deleted = ?, updated_at = ?
          WHERE id = ?`
       )
       .run(
@@ -329,6 +415,7 @@ export class EventsRepo {
         lunarRule,
         color,
         meetingUrl,
+        reminders,
         isDeleted,
         now,
         id
@@ -364,14 +451,133 @@ export class EventsRepo {
     return result.changes > 0
   }
 
+  /**
+   * Undo a delete. A row still here (soft-deleted, the deletion not yet
+   * pushed) is simply brought back, and its push becomes an update. One that is
+   * gone - the provider already has the deletion - is recreated from the
+   * snapshot taken before the delete, as a new event with its exceptions.
+   *
+   * A recreated invitation from someone else comes back without its guest
+   * list: re-adding the guests would make this account the organizer of a copy
+   * and, on Microsoft, send every one of them a fresh invitation.
+   */
+  restoreEvent(snapshot: { event: CalendarEvent; exceptions: EventException[] }): CalendarEvent {
+    const src = snapshot.event
+    const row = this.db
+      .prepare('SELECT is_deleted, calendar_id FROM events WHERE id = ?')
+      .get<{ is_deleted: number; calendar_id: string }>(src.id)
+    if (row) {
+      this.checkReadOnlyCalendar(row.calendar_id)
+      if (row.is_deleted === 1) {
+        this.db
+          .prepare('UPDATE events SET is_deleted = 0, dirty = 1, updated_at = ? WHERE id = ?')
+          .run(new Date().toISOString(), src.id)
+      }
+      return this.getEventById(src.id)!.event
+    }
+
+    const created = this.createEvent({
+      calendarId: src.calendarId,
+      title: src.title,
+      notes: src.notes,
+      location: src.location,
+      dtStartUtc: src.dtStartUtc,
+      dtEndUtc: src.dtEndUtc,
+      tzid: src.tzid,
+      allDay: src.allDay,
+      rrule: src.rrule,
+      exdate: src.exdate,
+      lunarRule: src.lunarRule ?? null,
+      color: src.color,
+      meetingUrl: src.meetingUrl,
+      reminders: src.reminders ?? null,
+      attendees: invitationSelf(src.attendees)
+        ? undefined
+        : src.attendees?.map((a) => ({ ...a, isSelf: false }))
+    })
+    for (const ex of snapshot.exceptions) {
+      this.upsertException({
+        masterEventId: created.id,
+        originalStartUtc: ex.originalStartUtc,
+        isCancelled: ex.isCancelled,
+        title: ex.title,
+        notes: ex.notes,
+        location: ex.location,
+        dtStartUtc: ex.dtStartUtc,
+        dtEndUtc: ex.dtEndUtc,
+        tzid: ex.tzid,
+        allDay: ex.allDay,
+        color: ex.color
+      })
+    }
+    return this.getEventById(created.id)!.event
+  }
+
+  /**
+   * Undo deleting one occurrence of a series. `previous` is the override it
+   * had before, if any (from the snapshot taken before the delete).
+   *
+   * A cancellation that has not been pushed is simply dropped - or the old
+   * override put back - and the provider never hears of it. One that has
+   * been pushed has to be reversed there: Google takes the instance back
+   * (the override is sent with status confirmed) and CalDAV re-PUTs the
+   * series, but Outlook cannot restore a deleted occurrence at all, so that
+   * case is refused rather than left to fail on every sync.
+   */
+  restoreOccurrence(masterEventId: string, originalStartUtc: string, previous?: EventException): void {
+    const master = this.getEventById(masterEventId)
+    if (!master) throw new Error(`Master event not found: ${masterEventId}`)
+    this.checkReadOnlyCalendar(master.event.calendarId)
+
+    const row = this.db
+      .prepare(
+        'SELECT id, is_cancelled, dirty FROM event_exceptions WHERE master_event_id = ? AND original_start_utc = ?'
+      )
+      .get<{ id: string; is_cancelled: number; dirty: number }>(masterEventId, originalStartUtc)
+    // Already back, or changed since: nothing left to undo.
+    if (!row || row.is_cancelled !== 1) return
+
+    const override = previous && !previous.isCancelled ? previous : undefined
+    if (row.dirty === 1 && !override) {
+      this.db.prepare('DELETE FROM event_exceptions WHERE id = ?').run(row.id)
+      return
+    }
+
+    if (row.dirty === 0) {
+      const provider = this.db
+        .prepare('SELECT a.type FROM calendars c JOIN accounts a ON a.id = c.account_id WHERE c.id = ?')
+        .get<{ type: string }>(master.event.calendarId)?.type
+      if (provider === 'graph') {
+        throw new Error('Outlook has already removed this occurrence, and it cannot be brought back.')
+      }
+    }
+
+    const durationMs = Date.parse(master.event.dtEndUtc) - Date.parse(master.event.dtStartUtc)
+    this.upsertException(
+      override
+        ? { ...override, isCancelled: false }
+        : {
+            masterEventId,
+            originalStartUtc,
+            isCancelled: false,
+            title: master.event.title,
+            dtStartUtc: originalStartUtc,
+            dtEndUtc: new Date(Date.parse(originalStartUtc) + durationMs).toISOString(),
+            tzid: master.event.tzid,
+            allDay: master.event.allDay
+          }
+    )
+  }
+
   upsertException(
-    exception: Omit<EventException, 'id' | 'createdAt' | 'updatedAt'>
+    exception: Omit<EventException, 'id' | 'createdAt' | 'updatedAt'>,
+    options?: { allowReadOnly?: boolean }
   ): EventException {
     const master = this.getEventById(exception.masterEventId)
     if (!master) {
       throw new Error(`Master event not found: ${exception.masterEventId}`)
     }
-    this.checkReadOnlyCalendar(master.event.calendarId)
+    this.checkReadOnlyCalendar(master.event.calendarId, options?.allowReadOnly === true)
 
     const now = new Date().toISOString()
     const existing = this.db
@@ -633,6 +839,47 @@ export class EventsRepo {
     return occurrences.sort((a, b) => a.startUtc.localeCompare(b.startUtc))
   }
 
+  /** Each event's own reminder list (undefined where the default applies) and
+   *  calendar, for the reminder scheduler. */
+  getReminderSources(
+    eventIds: string[]
+  ): Map<string, { reminders: EventReminder[] | undefined; calendarId: string; declined: boolean }> {
+    const out = new Map<string, { reminders: EventReminder[] | undefined; calendarId: string; declined: boolean }>()
+    for (const ids of EventsRepo.chunk([...new Set(eventIds)])) {
+      const placeholders = ids.map(() => '?').join(',')
+      const rows = this.db
+        .prepare(
+          `SELECT e.id, e.calendar_id, e.reminders,
+             EXISTS (SELECT 1 FROM attendees a
+                     WHERE a.event_id = e.id AND a.is_self = 1 AND a.response_status = 'declined') AS declined
+           FROM events e WHERE e.id IN (${placeholders})`
+        )
+        .all<{ id: string; calendar_id: string; reminders: string | null; declined: number }>(...ids)
+      for (const row of rows) {
+        out.set(row.id, {
+          reminders: parseRemindersJson(row.reminders),
+          calendarId: row.calendar_id,
+          declined: row.declined === 1
+        })
+      }
+    }
+    return out
+  }
+
+  /** Every distinct reminder list in use - events' own and calendars'
+   *  defaults - so the scheduler can look far enough ahead. A handful of rows
+   *  however many events there are. */
+  listReminderListsInUse(): EventReminder[][] {
+    const rows = this.db
+      .prepare(
+        `SELECT DISTINCT reminders AS list FROM events WHERE reminders IS NOT NULL AND is_deleted = 0
+         UNION
+         SELECT DISTINCT default_reminders AS list FROM calendars WHERE default_reminders IS NOT NULL`
+      )
+      .all<{ list: string }>()
+    return rows.map((row) => parseRemindersJson(row.list) ?? [])
+  }
+
   /** Gregorian years for which a lunar master already has a materialized instance. */
   private getMaterializedYears(masterEventId: string): Set<number> {
     const rows = this.db
@@ -676,8 +923,8 @@ export class EventsRepo {
         id, calendar_id, uid, title, notes, location,
         dtstart_utc, dtend_utc, tzid, all_day, rrule, exdate,
         lunar_rule, lunar_source_event_id,
-        color, meeting_url, dirty, is_deleted, created_at, updated_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1, NULL, NULL, NULL, ?, ?, ?, 1, 0, ?, ?)`
+        color, meeting_url, reminders, dirty, is_deleted, created_at, updated_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1, NULL, NULL, NULL, ?, ?, ?, ?, 1, 0, ?, ?)`
     )
 
     this.db.transaction(() => {
@@ -701,6 +948,9 @@ export class EventsRepo {
           input.masterEventId,
           src.color || null,
           src.meetingUrl || null,
+          // A synced copy rings like the anniversary it came from - on the
+          // phone as well, once it is pushed.
+          serializeReminders(src.reminders),
           now,
           now
         )
@@ -836,14 +1086,15 @@ export class EventsRepo {
     const location = input.bare ? null : existing.event.location || null
     const color = input.bare ? null : existing.event.color || null
     const meetingUrl = input.bare ? null : existing.event.meetingUrl || null
+    const reminders = input.bare ? null : serializeReminders(existing.event.reminders)
 
     this.db
       .prepare(
         `INSERT INTO events (
           id, calendar_id, uid, title, notes, location,
           dtstart_utc, dtend_utc, tzid, all_day, rrule, exdate,
-          color, meeting_url, dirty, is_deleted, created_at, updated_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, 0, ?, ?)`
+          color, meeting_url, reminders, dirty, is_deleted, created_at, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, 0, ?, ?)`
       )
       .run(
         newId,
@@ -860,6 +1111,7 @@ export class EventsRepo {
         exdate,
         color,
         meetingUrl,
+        reminders,
         now,
         now
       )
@@ -894,6 +1146,23 @@ export class EventsRepo {
     }
 
     if (input.scope === 'this') {
+      // An occurrence override has nowhere to keep reminders, and no provider
+      // here syncs them per occurrence, so a reminder change made while editing
+      // one occurrence is a change to the series.
+      if (
+        input.updateInput.reminders !== undefined &&
+        serializeReminders(input.updateInput.reminders) !== serializeReminders(master.event.reminders)
+      ) {
+        this.updateEvent(input.masterEventId, { reminders: input.updateInput.reminders })
+      }
+      // Guests likewise: the editor shows the series' list, and an override has
+      // no list of its own, so a change to it is a change to the series.
+      if (
+        input.updateInput.attendees !== undefined &&
+        guestListKey(input.updateInput.attendees) !== guestListKey(master.event.attendees)
+      ) {
+        this.updateEvent(input.masterEventId, { attendees: input.updateInput.attendees })
+      }
       this.upsertException({
         masterEventId: input.masterEventId,
         originalStartUtc: input.originalStartUtc,
@@ -935,7 +1204,16 @@ export class EventsRepo {
         allDay: input.updateInput.allDay ?? master.event.allDay,
         rrule: input.updateInput.rrule ?? cleanRrule,
         color: input.updateInput.color ?? master.event.color,
-        meetingUrl: input.updateInput.meetingUrl ?? master.event.meetingUrl
+        meetingUrl: input.updateInput.meetingUrl ?? master.event.meetingUrl,
+        reminders:
+          input.updateInput.reminders !== undefined ? input.updateInput.reminders : master.event.reminders,
+        // The rest of the series is a new event, so its guests go with it -
+        // otherwise they are uninvited from every remaining date. Not on
+        // someone else's invitation: that would make a copy with this account
+        // as organizer and, on Microsoft, invite everyone again.
+        attendees: invitationSelf(master.event.attendees)
+          ? undefined
+          : (input.updateInput.attendees ?? master.event.attendees)?.map((a) => ({ ...a }))
       })
 
       return true
@@ -979,45 +1257,41 @@ export class EventsRepo {
     return false
   }
 
+  /**
+   * Events whose title, notes or location match, newest first. The full-text
+   * index finds words by how they start, with diacritics folded ("gio" finds
+   * "Giỗ"); LIKE adds matches inside a word ("ntist"), which the index cannot.
+   */
   searchEvents(query: string, limit = 50): CalendarEvent[] {
     const trimmed = query.trim()
     if (!trimmed) return []
 
-    // Try FTS5 MATCH first
-    try {
-      const ftsQuery = trimmed
-        .replace(/[^\w\s\u00C0-\u1EF9]/g, ' ')
-        .trim()
-        .split(/\s+/)
-        .filter(Boolean)
-        .map((w) => `"${w}"*`)
-        .join(' ')
-
-      if (ftsQuery) {
-        const ftsRows = this.db
-          .prepare(
-            `SELECT e.* FROM events_fts f
-             JOIN events e ON e.id = f.event_id
-             WHERE events_fts MATCH ? AND e.is_deleted = 0
-             ORDER BY e.dtstart_utc DESC LIMIT ?`
-          )
-          .all<EventRow>(ftsQuery, limit)
-
-        if (ftsRows && ftsRows.length > 0) {
-          return ftsRows.map((r) => {
-            const event = mapRowToEvent(r)
-            event.attendees = this.getAttendeesForEvent(r.id)
-            return event
-          })
-        }
-      }
-    } catch {
-      // Fallback to LIKE if FTS fails or is unsupported
-    }
-
-    // Fallback LIKE query
     const pattern = `%${trimmed}%`
-    const rows = this.db
+    const ftsQuery = trimmed
+      .replace(/[^\w\s\u00C0-\u1EF9]/g, ' ')
+      .trim()
+      .split(/\s+/)
+      .filter(Boolean)
+      .map((w) => `"${w}"*`)
+      .join(' ')
+
+    let rows: EventRow[] | undefined
+    if (ftsQuery) {
+      try {
+        rows = this.db
+          .prepare(
+            `SELECT * FROM events
+             WHERE is_deleted = 0
+               AND (rowid IN (SELECT rowid FROM events_fts WHERE events_fts MATCH ?)
+                    OR title LIKE ? OR notes LIKE ? OR location LIKE ?)
+             ORDER BY dtstart_utc DESC LIMIT ?`
+          )
+          .all<EventRow>(ftsQuery, pattern, pattern, pattern, limit)
+      } catch {
+        // A query the index will not parse still gets the plain match below.
+      }
+    }
+    rows ??= this.db
       .prepare(
         `SELECT * FROM events
          WHERE is_deleted = 0 AND (title LIKE ? OR notes LIKE ? OR location LIKE ?)
