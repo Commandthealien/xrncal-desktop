@@ -14,6 +14,8 @@ export default defineConfig({
   },
   test: {
     environment: 'node',
-    globals: true
+    globals: true,
+    // e2e/ is Playwright's (npm run test:e2e), run against the built app.
+    include: ['tests/**/*.test.ts']
   }
 })

@@ -37,3 +37,20 @@ jobs:
 
       - name: Production build
         run: npm run build
+
+  ui:
+    # Drives the built app through Playwright (e2e/). This one needs the real
+    # Electron binary, and a display: xvfb-run gives it a virtual one.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - run: npm ci
+
+      - name: UI tests
+        run: xvfb-run -a npm run test:e2e
