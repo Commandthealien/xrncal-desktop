@@ -36,13 +36,13 @@
   },
   "dependencies": {
     "electron-updater": "^6.8.9",
-    "i18next": "^24.2.2",
+    "i18next": "^26.4.7",
     "ical.js": "^2.2.1",
     "lucide-react": "^1.16.0",
     "luxon": "^3.7.2",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
-    "react-i18next": "^15.4.1",
+    "react-i18next": "^17.0.19",
     "rrule": "^2.8.1",
     "sonner": "^2.0.8"
   },
