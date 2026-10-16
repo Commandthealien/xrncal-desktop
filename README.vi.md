@@ -113,7 +113,7 @@ Năm view đều là component React tự viết, không dùng thư viện lịc
 
 ## Cài đặt
 
-Yêu cầu build: **Node.js 20+** và Git. Chưa có bản release dựng sẵn — hiện tại build từ nguồn. Khi đã có release trên GitHub, bản đã cài sẽ tự cập nhật (tắt ở Cài đặt → Chung → *Kiểm tra bản cập nhật*).
+Yêu cầu build: **Node.js 23.4+** (khuyên dùng 24 - phần test dùng `node:sqlite` có sẵn trong Node) và Git. Chưa có bản release dựng sẵn — hiện tại build từ nguồn. Khi đã có release trên GitHub, bản đã cài sẽ tự cập nhật (tắt ở Cài đặt → Chung → *Kiểm tra bản cập nhật*).
 
 ```bash
 git clone https://github.com/Xernnn/xrncal-desktop.git

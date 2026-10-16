@@ -113,7 +113,7 @@ All five views are React components written for this app, with no third-party ca
 
 ## Install
 
-To build you need **Node.js 20+** and Git. There are no prebuilt releases yet — build from source. Once releases are published on GitHub, installed builds update themselves (Settings → General → *Check for updates* turns that off).
+To build you need **Node.js 23.4+** (24 recommended - the tests use its built-in `node:sqlite`) and Git. There are no prebuilt releases yet — build from source. Once releases are published on GitHub, installed builds update themselves (Settings → General → *Check for updates* turns that off).
 
 ```bash
 git clone https://github.com/Xernnn/xrncal-desktop.git
