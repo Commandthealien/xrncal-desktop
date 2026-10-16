@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest'
+import { describe, it, expect, beforeEach, vi, type Mock } from 'vitest'
 
 const shown: { title: string; body: string; click?: () => void }[] = []
 
@@ -31,7 +31,7 @@ const MIN = 60_000
 describe('ReminderScheduler', () => {
   let db: ReturnType<typeof createSqliteDriver>
   let events: InstanceType<typeof EventsRepo>
-  let showMainWindow: ReturnType<typeof vi.fn>
+  let showMainWindow: Mock<() => void>
   let scheduler: InstanceType<typeof ReminderScheduler>
 
   beforeEach(() => {
@@ -40,7 +40,7 @@ describe('ReminderScheduler', () => {
     runMigrations(db)
     seedDefaultData(db)
     events = new EventsRepo(db)
-    showMainWindow = vi.fn()
+    showMainWindow = vi.fn<() => void>()
     scheduler = new ReminderScheduler(db, showMainWindow)
   })
 
