@@ -8,10 +8,9 @@ on:
 jobs:
   verify:
     runs-on: ubuntu-latest
-    env:
-      # Unit tests stub the `electron` module (see tests/stubs/electron.ts) and
-      # nothing here packages the app, so skip the ~100 MB binary download.
-      ELECTRON_SKIP_BINARY_DOWNLOAD: '1'
+    # No Electron binary is downloaded here: since Electron 42 it is fetched the
+    # first time something asks for its path, unit tests stub `electron` (see
+    # tests/stubs/electron.ts), and the build only reads its package.json.
     steps:
       - uses: actions/checkout@v4
 

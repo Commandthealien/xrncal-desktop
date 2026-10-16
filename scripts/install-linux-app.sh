@@ -39,12 +39,15 @@ install -m 755 "$SRC_APPIMAGE" "$TMP_APPIMAGE"
 mv -f "$TMP_APPIMAGE" "$TARGET_APPIMAGE"
 install -m 644 resources/icon.png "$ICON_DIR/${APP_ID}.png"
 
+# --ozone-platform=x11: under Wayland the app would otherwise run as a native
+# Wayland client, where the tray's mini window can neither place itself nor
+# stay on top (see executableArgs in electron-builder.yml).
 cat > "$DESKTOP_DIR/${APP_ID}.desktop" <<EOF
 [Desktop Entry]
 Type=Application
 Name=${APP_NAME}
 Comment=Modern desktop calendar with multi-provider sync
-Exec="${TARGET_APPIMAGE}" %U
+Exec="${TARGET_APPIMAGE}" --ozone-platform=x11 %U
 Icon=${ICON_DIR}/${APP_ID}.png
 Terminal=false
 Categories=Office;Calendar;

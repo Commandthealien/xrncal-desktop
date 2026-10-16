@@ -37,6 +37,12 @@ linux:
       arch:
         - x64
   category: Office;Calendar;
+  # Electron 38+ runs as a native Wayland client in a Wayland session, where a
+  # window cannot place itself or stay on top - the tray's mini window does
+  # both. XWayland keeps them working; this has to be a command-line switch, as
+  # app.commandLine.appendSwitch() runs too late to choose the platform.
+  executableArgs:
+    - --ozone-platform=x11
   synopsis: Modern desktop calendar with multi-provider sync
   description: xrncal desktop client for Windows and Linux
   icon: resources/icon.png
