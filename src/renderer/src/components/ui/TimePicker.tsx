@@ -89,8 +89,8 @@ function parseSmartTime(raw: string): string | null {
   const isAm = clean.endsWith('am') || clean.endsWith('sa')
   const textWithoutMeridiem = clean.replace(/pm|am|ch|sa/g, '')
 
-  let hours = 0
-  let mins = 0
+  let hours: number
+  let mins: number
 
   if (textWithoutMeridiem.includes(':') || textWithoutMeridiem.includes('h') || textWithoutMeridiem.includes('.')) {
     const parts = textWithoutMeridiem.split(/[:h.]/)

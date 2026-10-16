@@ -168,7 +168,8 @@ export function createSqliteDriver(dbPath: string): ISqliteDatabase {
       return driver
     } catch (betterSqliteErr) {
       throw new Error(
-        `Failed to initialize SQLite driver. node:sqlite error: ${nodeSqliteErr}; better-sqlite3 error: ${betterSqliteErr}`
+        `Failed to initialize SQLite driver. node:sqlite error: ${nodeSqliteErr}; better-sqlite3 error: ${betterSqliteErr}`,
+        { cause: betterSqliteErr }
       )
     }
   }

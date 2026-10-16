@@ -148,7 +148,6 @@ export const App: React.FC = () => {
 
   useEffect(() => {
     setListExpand({ before: 0, after: 0 })
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentView, anchorDate])
 
   const handleListNearEdge = useCallback((direction: 'past' | 'future') => {
@@ -475,7 +474,6 @@ export const App: React.FC = () => {
     return () => {
       if (headerHideTimerRef.current) clearTimeout(headerHideTimerRef.current)
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   const handlePrev = useCallback(() => {

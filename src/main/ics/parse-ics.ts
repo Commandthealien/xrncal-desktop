@@ -178,7 +178,7 @@ export function parseIcsContent(icsContent: string, targetCalendarId: string): P
   try {
     jcal = ICAL.parse(icsContent)
   } catch (err: any) {
-    throw new Error(`Failed to parse iCalendar format: ${err.message || String(err)}`)
+    throw new Error(`Failed to parse iCalendar format: ${err.message || String(err)}`, { cause: err })
   }
 
   const comp = new ICAL.Component(jcal)

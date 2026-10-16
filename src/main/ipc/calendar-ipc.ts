@@ -109,7 +109,7 @@ export function registerCalendarIpcHandlers(): void {
       return created
     } catch (err: any) {
       if (err instanceof ReadOnlyCalendarError) {
-        throw new Error(`Write rejected: ${err.message}`)
+        throw new Error(`Write rejected: ${err.message}`, { cause: err })
       }
       throw err
     }
@@ -122,7 +122,7 @@ export function registerCalendarIpcHandlers(): void {
       return updated
     } catch (err: any) {
       if (err instanceof ReadOnlyCalendarError) {
-        throw new Error(`Write rejected: ${err.message}`)
+        throw new Error(`Write rejected: ${err.message}`, { cause: err })
       }
       throw err
     }
@@ -135,7 +135,7 @@ export function registerCalendarIpcHandlers(): void {
       return result
     } catch (err: any) {
       if (err instanceof ReadOnlyCalendarError) {
-        throw new Error(`Delete rejected: ${err.message}`)
+        throw new Error(`Delete rejected: ${err.message}`, { cause: err })
       }
       throw err
     }
@@ -150,7 +150,7 @@ export function registerCalendarIpcHandlers(): void {
         return result
       } catch (err: any) {
         if (err instanceof ReadOnlyCalendarError) {
-          throw new Error(`Exception write rejected: ${err.message}`)
+          throw new Error(`Exception write rejected: ${err.message}`, { cause: err })
         }
         throw err
       }
@@ -164,7 +164,7 @@ export function registerCalendarIpcHandlers(): void {
       return result
     } catch (err: any) {
       if (err instanceof ReadOnlyCalendarError) {
-        throw new Error(`Move rejected: ${err.message}`)
+        throw new Error(`Move rejected: ${err.message}`, { cause: err })
       }
       throw err
     }
@@ -177,7 +177,7 @@ export function registerCalendarIpcHandlers(): void {
       return result
     } catch (err: any) {
       if (err instanceof ReadOnlyCalendarError) {
-        throw new Error(`Copy rejected: ${err.message}`)
+        throw new Error(`Copy rejected: ${err.message}`, { cause: err })
       }
       throw err
     }
@@ -190,7 +190,7 @@ export function registerCalendarIpcHandlers(): void {
       return result
     } catch (err: any) {
       if (err instanceof ReadOnlyCalendarError) {
-        throw new Error(`Recurring update rejected: ${err.message}`)
+        throw new Error(`Recurring update rejected: ${err.message}`, { cause: err })
       }
       throw err
     }
@@ -203,7 +203,7 @@ export function registerCalendarIpcHandlers(): void {
       return result
     } catch (err: any) {
       if (err instanceof ReadOnlyCalendarError) {
-        throw new Error(`Recurring delete rejected: ${err.message}`)
+        throw new Error(`Recurring delete rejected: ${err.message}`, { cause: err })
       }
       throw err
     }
@@ -214,7 +214,7 @@ export function registerCalendarIpcHandlers(): void {
       return eventsRepo.materializeLunarEvent(input)
     } catch (err: any) {
       if (err instanceof ReadOnlyCalendarError) {
-        throw new Error(`Materialize rejected: ${err.message}`)
+        throw new Error(`Materialize rejected: ${err.message}`, { cause: err })
       }
       throw err
     }
@@ -225,7 +225,7 @@ export function registerCalendarIpcHandlers(): void {
       return eventsRepo.detachLunarMaterialized(input)
     } catch (err: any) {
       if (err instanceof ReadOnlyCalendarError) {
-        throw new Error(`Detach rejected: ${err.message}`)
+        throw new Error(`Detach rejected: ${err.message}`, { cause: err })
       }
       throw err
     }
@@ -308,7 +308,7 @@ export function registerCalendarIpcHandlers(): void {
         return restored
       } catch (err: unknown) {
         if (err instanceof ReadOnlyCalendarError) {
-          throw new Error(`Write rejected: ${err.message}`)
+          throw new Error(`Write rejected: ${err.message}`, { cause: err })
         }
         throw err
       }
@@ -325,7 +325,7 @@ export function registerCalendarIpcHandlers(): void {
       return updated
     } catch (err: any) {
       if (err instanceof ReadOnlyCalendarError) {
-        throw new Error(`Reply rejected: ${err.message}`)
+        throw new Error(`Reply rejected: ${err.message}`, { cause: err })
       }
       throw err
     }

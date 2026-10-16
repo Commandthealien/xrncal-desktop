@@ -378,7 +378,7 @@ describe('CalDAV sync', () => {
     expect(reportCount(calls)).toBe(0)
 
     // A changed ctag lists the etags, then fetches only what is new.
-    calls = stubServer([a, b], 'ctag-2')
+    stubServer([a, b], 'ctag-2')
     await engine.syncAll()
     expect(reports).toEqual(['etags', 'b.ics'])
     expect(rows().map((r) => r.title).sort()).toEqual(['A', 'B'])
