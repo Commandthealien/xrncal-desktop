@@ -51,6 +51,7 @@ describe('IPC Channels and Contracts', () => {
           dayStartHour: 7,
           hourBlockSize: 'medium',
           secondaryTimezone: '',
+          preferredTimeZones: '',
           dragSnapMinutes: 15,
           suggestionShowCalendarName: true,
           defaultReminderMinutes: 10,

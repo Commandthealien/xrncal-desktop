@@ -38,7 +38,7 @@ import {
 import { TitleSuggestInput } from './TitleSuggestInput'
 import { ReminderListField } from './ReminderListField'
 import { useDisplayPreferences } from '../context/DisplayPreferencesContext'
-import { zoneLabel, zoneOptions } from '../lib/time-zones'
+import { zonePickerOptions } from '../lib/time-zones'
 
 export interface EventEditorInitialData {
   occurrence?: ExpandedOccurrence
@@ -143,7 +143,8 @@ export const EventEditorDialog: React.FC<EventEditorDialogProps> = ({
   onDraftChange
 }) => {
   const { t, i18n } = useTranslation()
-  const { defaultReminderMinutes, defaultAllDayReminderMinutes, timeFormat } = useDisplayPreferences()
+  const { defaultReminderMinutes, defaultAllDayReminderMinutes, timeFormat, preferredTimeZones } =
+    useDisplayPreferences()
   const isEditing = Boolean(data?.occurrence || data?.event)
   // Lunar anniversaries have no per-instance RRULE semantics — edits always apply
   // to the whole series, so they skip the recurring-scope prompt.
@@ -833,14 +834,18 @@ export const EventEditorDialog: React.FC<EventEditorDialogProps> = ({
 
   const selectedCalendar = (calendars || []).find((c) => c.id === calendarId)
 
-  // The zone picker always offers the event's zone and this machine's, which
-  // the runtime's list may spell differently (Asia/Ho_Chi_Minh, Asia/Saigon).
+  // The zones in use - the preferred ones from Settings, this machine's and the
+  // event's own - head the list, so picking one needs no scrolling.
   const localZone = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC'
+  const zoneGroups = zonePickerOptions(preferredTimeZones, localZone, tzid)
   const timeZoneOptions = [
-    ...[tzid, localZone]
-      .filter((z, i, all) => z && all.indexOf(z) === i && !zoneOptions().some((o) => o.value === z))
-      .map((z) => ({ value: z, label: zoneLabel(z) })),
-    ...zoneOptions()
+    ...zoneGroups.pinned.map(({ value, label, isLocal }) => ({
+      value,
+      label,
+      description: isLocal ? t('editor.timeZoneThisComputer') : undefined,
+      group: t('editor.timeZonePreferred')
+    })),
+    ...zoneGroups.rest.map((o) => ({ ...o, group: t('editor.timeZoneAll') }))
   ]
   // When the event's zone keeps another clock, say what its start is here.
   const startInZone = DateTime.fromISO(`${startDateStr}T${startTimeStr}:00`, { zone: editZone(tzid) })
@@ -990,17 +995,21 @@ export const EventEditorDialog: React.FC<EventEditorDialogProps> = ({
               </div>
             </FormRow>
 
+            {/* Date and time each take the width their text needs (min-w-max,
+                shrink-0) - squeezed side by side they cut the date to "16/10/20…".
+                Should a narrow panel not hold both, the time wraps under the date. */}
             <FormRow label={isLunarYearly ? t('editor.anniversaryDate') : t('editor.start')} divider>
-              <div className="flex items-center gap-1.5 min-w-0 w-full">
-                <div className="flex-1 min-w-0">
+              <div className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5 w-full">
+                <div className="flex-1 min-w-max">
                   <DatePicker
                     value={startDateStr}
                     onChange={handleStartDateChange}
                     placeholder={t('editor.startDate')}
+                    clearable={false}
                   />
                 </div>
                 {!allDay && !isLunarYearly && (
-                  <div className="w-[105px] shrink-0">
+                  <div className="shrink-0">
                     <TimePicker value={startTimeStr} onChange={handleStartTimeChange} />
                   </div>
                 )}
@@ -1009,17 +1018,18 @@ export const EventEditorDialog: React.FC<EventEditorDialogProps> = ({
 
             {!isLunarYearly && (
               <FormRow label={t('editor.end')} divider>
-                <div className="flex items-center gap-1.5 min-w-0 w-full">
-                  <div className="flex-1 min-w-0">
+                <div className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5 w-full">
+                  <div className="flex-1 min-w-max">
                     <DatePicker
                       value={endDateStr}
                       onChange={(val) => handleFieldChange(setEndDateStr, val)}
                       minDate={startDateStr}
                       placeholder={t('editor.endDate')}
+                      clearable={false}
                     />
                   </div>
                   {!allDay && (
-                    <div className="w-[105px] shrink-0">
+                    <div className="shrink-0">
                       <TimePicker
                         value={endTimeStr}
                         onChange={handleEndTimeChange}
@@ -1032,138 +1042,7 @@ export const EventEditorDialog: React.FC<EventEditorDialogProps> = ({
               </FormRow>
             )}
 
-            {!allDay && !isLunarYearly && (
-              <FormRow label={t('editor.timeZone')} divider alignTop={Boolean(startHereLabel)}>
-                <div className="min-w-0">
-                  <CustomSelect
-                    value={tzid}
-                    onChange={(val) => handleFieldChange(setTzid, val)}
-                    options={timeZoneOptions}
-                    searchable
-                  />
-                  {startHereLabel && (
-                    <div className="px-2.5 pt-1 pb-0.5 text-[11px] text-muted">
-                      {t('editor.timeZoneHere', { time: startHereLabel })}
-                    </div>
-                  )}
-                </div>
-              </FormRow>
-            )}
-
-            <FormRow label={t('reminders.label')} divider alignTop>
-              <ReminderListField
-                reminders={shownReminders}
-                allDay={allDay || isLunarYearly}
-                isDefault={reminders === null}
-                onChange={changeReminders}
-                onUseDefault={() => changeReminders(null)}
-              />
-            </FormRow>
-
-            <FormRow label={t('editor.location')} divider>
-              <TextInput
-                value={location}
-                onChange={(val) => handleFieldChange(setLocation, val)}
-                placeholder={t('editor.locationPlaceholder')}
-                prefixIcon={<MapPin className="h-3.5 w-3.5" />}
-              />
-            </FormRow>
-
-            <FormRow label={t('editor.meetingUrl')} divider>
-              <TextInput
-                value={meetingUrl}
-                onChange={(val) => handleFieldChange(setMeetingUrl, val)}
-                placeholder={t('editor.meetingUrlPlaceholder')}
-                type="url"
-                prefixIcon={<LinkIcon className="h-3.5 w-3.5" />}
-              />
-            </FormRow>
-
-            <FormRow label={t('editor.attendees')} divider alignTop>
-              <div className="w-full space-y-1.5 py-1">
-                {attendees.length > 0 && (
-                  <div className="space-y-1">
-                    {attendees.map((a) => (
-                      <div
-                        key={a.email}
-                        className="flex items-center gap-2 rounded-[3px] bg-hover/60 px-2 py-1 text-xs"
-                      >
-                        <span
-                          className={`h-1.5 w-1.5 shrink-0 rounded-full ${
-                            ATTENDEE_STATUS_DOT[a.responseStatus || 'needsAction']
-                          }`}
-                          title={a.responseStatus || 'needsAction'}
-                        />
-                        <span className="flex-1 min-w-0 truncate text-primary">
-                          {a.displayName || a.email}
-                          {a.isOrganizer && (
-                            <span className="ml-1.5 text-[10px] text-muted">{t('editor.organizer')}</span>
-                          )}
-                          {a.isSelf && !a.isOrganizer && (
-                            <span className="ml-1.5 text-[10px] text-muted">{t('editor.you')}</span>
-                          )}
-                          {a.role && (
-                            <span className="ml-1.5 text-[10px] text-muted">
-                              {t(
-                                a.role === 'optional'
-                                  ? 'editor.attendeeOptional'
-                                  : a.role === 'room'
-                                    ? 'editor.attendeeRoom'
-                                    : 'editor.attendeeResource'
-                              )}
-                            </span>
-                          )}
-                        </span>
-                        {/* A guest cannot change the guest list, only answer. */}
-                        {!inviteSelf && (
-                          <button
-                            type="button"
-                            onClick={() => handleRemoveAttendee(a.email)}
-                            className="shrink-0 cursor-pointer text-muted hover:text-today transition-colors"
-                          >
-                            <X className="h-3 w-3" />
-                          </button>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                )}
-                {!inviteSelf && (
-                  <div className="flex items-center gap-1.5">
-                    <TextInput
-                      value={attendeeInput}
-                      onChange={setAttendeeInput}
-                      placeholder={t('editor.attendeesPlaceholder')}
-                      type="email"
-                      prefixIcon={<Users className="h-3.5 w-3.5" />}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter') {
-                          e.preventDefault()
-                          handleAddAttendee()
-                        }
-                      }}
-                    />
-                    <button
-                      type="button"
-                      onClick={handleAddAttendee}
-                      className="gc-btn shrink-0 text-xs"
-                    >
-                      {t('common.add')}
-                    </button>
-                  </div>
-                )}
-              </div>
-            </FormRow>
-
-            <FormRow label={t('editor.notes')} divider alignTop>
-              <TextArea
-                value={notes}
-                onChange={(val) => handleFieldChange(setNotes, val)}
-                placeholder={t('editor.notesPlaceholder')}
-                rows={3}
-              />
-            </FormRow>
-
+            {/* Repeat sits right under the dates it repeats, not at the foot of the form. */}
             <FormRow label={t('editor.repeat')} divider={recurrencePreset === 'none' || recurrencePreset === 'custom'}>
               <CustomSelect
                 value={recurrencePreset}
@@ -1336,6 +1215,138 @@ export const EventEditorDialog: React.FC<EventEditorDialogProps> = ({
                 </div>
               </FormRow>
             )}
+
+            {!allDay && !isLunarYearly && (
+              <FormRow label={t('editor.timeZone')} divider alignTop={Boolean(startHereLabel)}>
+                <div className="min-w-0">
+                  <CustomSelect
+                    value={tzid}
+                    onChange={(val) => handleFieldChange(setTzid, val)}
+                    options={timeZoneOptions}
+                    searchable
+                  />
+                  {startHereLabel && (
+                    <div className="px-2.5 pt-1 pb-0.5 text-[11px] text-muted">
+                      {t('editor.timeZoneHere', { time: startHereLabel })}
+                    </div>
+                  )}
+                </div>
+              </FormRow>
+            )}
+
+            <FormRow label={t('reminders.label')} divider alignTop>
+              <ReminderListField
+                reminders={shownReminders}
+                allDay={allDay || isLunarYearly}
+                isDefault={reminders === null}
+                onChange={changeReminders}
+                onUseDefault={() => changeReminders(null)}
+              />
+            </FormRow>
+
+            <FormRow label={t('editor.location')} divider>
+              <TextInput
+                value={location}
+                onChange={(val) => handleFieldChange(setLocation, val)}
+                placeholder={t('editor.locationPlaceholder')}
+                prefixIcon={<MapPin className="h-3.5 w-3.5" />}
+              />
+            </FormRow>
+
+            <FormRow label={t('editor.meetingUrl')} divider>
+              <TextInput
+                value={meetingUrl}
+                onChange={(val) => handleFieldChange(setMeetingUrl, val)}
+                placeholder={t('editor.meetingUrlPlaceholder')}
+                type="url"
+                prefixIcon={<LinkIcon className="h-3.5 w-3.5" />}
+              />
+            </FormRow>
+
+            <FormRow label={t('editor.attendees')} divider alignTop>
+              <div className="w-full space-y-1.5 py-1">
+                {attendees.length > 0 && (
+                  <div className="space-y-1">
+                    {attendees.map((a) => (
+                      <div
+                        key={a.email}
+                        className="flex items-center gap-2 rounded-[3px] bg-hover/60 px-2 py-1 text-xs"
+                      >
+                        <span
+                          className={`h-1.5 w-1.5 shrink-0 rounded-full ${
+                            ATTENDEE_STATUS_DOT[a.responseStatus || 'needsAction']
+                          }`}
+                          title={a.responseStatus || 'needsAction'}
+                        />
+                        <span className="flex-1 min-w-0 truncate text-primary">
+                          {a.displayName || a.email}
+                          {a.isOrganizer && (
+                            <span className="ml-1.5 text-[10px] text-muted">{t('editor.organizer')}</span>
+                          )}
+                          {a.isSelf && !a.isOrganizer && (
+                            <span className="ml-1.5 text-[10px] text-muted">{t('editor.you')}</span>
+                          )}
+                          {a.role && (
+                            <span className="ml-1.5 text-[10px] text-muted">
+                              {t(
+                                a.role === 'optional'
+                                  ? 'editor.attendeeOptional'
+                                  : a.role === 'room'
+                                    ? 'editor.attendeeRoom'
+                                    : 'editor.attendeeResource'
+                              )}
+                            </span>
+                          )}
+                        </span>
+                        {/* A guest cannot change the guest list, only answer. */}
+                        {!inviteSelf && (
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveAttendee(a.email)}
+                            className="shrink-0 cursor-pointer text-muted hover:text-today transition-colors"
+                          >
+                            <X className="h-3 w-3" />
+                          </button>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {!inviteSelf && (
+                  <div className="flex items-center gap-1.5">
+                    <TextInput
+                      value={attendeeInput}
+                      onChange={setAttendeeInput}
+                      placeholder={t('editor.attendeesPlaceholder')}
+                      type="email"
+                      prefixIcon={<Users className="h-3.5 w-3.5" />}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault()
+                          handleAddAttendee()
+                        }
+                      }}
+                    />
+                    <button
+                      type="button"
+                      onClick={handleAddAttendee}
+                      className="gc-btn shrink-0 text-xs"
+                    >
+                      {t('common.add')}
+                    </button>
+                  </div>
+                )}
+              </div>
+            </FormRow>
+
+            <FormRow label={t('editor.notes')} divider alignTop>
+              <TextArea
+                value={notes}
+                onChange={(val) => handleFieldChange(setNotes, val)}
+                placeholder={t('editor.notesPlaceholder')}
+                rows={3}
+              />
+            </FormRow>
           </div>
         </form>
 

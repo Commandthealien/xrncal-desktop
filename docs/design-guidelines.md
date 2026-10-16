@@ -48,6 +48,16 @@ Replaced saturated Google primaries with gentle pastel tones:
 - Soft Slate Gray: `#868e96`
 - Soft Honey Gold: `#e3b341`
 
+### Day Markers
+Notable days are marked the same way in every view, each by its **own shape** as well as its colour - four cell tints at 10% (the old month view) were indistinguishable on the dark theme.
+- **Today:** a filled `today` circle behind the solar date (white digits). Month view also tints today's cell (`--color-today-mark` 10% into the surface); no other day is tinted.
+- **1st of the solar month:** the month's name beside the number ("1 Nov", "1 thg 11") - text, not colour.
+- **Mùng 1 / Tết (new moon):** `LunarLabel` chip, hollow ○ glyph, `moon-new` teal (`#0b7166` light / `#4fd1c1` dark) on a 15% tint of itself.
+- **Rằm (full moon):** the same chip with a filled ● glyph in `moon-full` gold (`#8a5a00` light / `#f2c14e` dark).
+- Year view's cells are too small for a chip, so `LunarLabel variant="text"` only colours the lunar date.
+
+Neither moon colour may be red: red means today.
+
 ## Typography
 
 Font: Inter. Hierarchy:

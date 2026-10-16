@@ -23,6 +23,8 @@ interface DatePickerProps {
   className?: string
   showPresets?: boolean
   align?: 'left' | 'right'
+  /** Offer an × that empties the field. Off for a date the form cannot do without. */
+  clearable?: boolean
 }
 
 export const DatePicker: React.FC<DatePickerProps> = ({
@@ -36,7 +38,8 @@ export const DatePicker: React.FC<DatePickerProps> = ({
   compact = false,
   className = '',
   showPresets = true,
-  align = 'left'
+  align = 'left',
+  clearable = true
 }) => {
   const [isOpen, setIsOpen] = useState(false)
   const [coords, setCoords] = useState<{ top: number; left: number } | null>(null)
@@ -462,8 +465,10 @@ export const DatePicker: React.FC<DatePickerProps> = ({
               isOpen || parsedValue ? 'text-accent' : 'text-muted'
             }`}
           />
+          {/* Not truncated: a date cut to "16/10/20…" is no date at all. The
+              caller gives the field the room it needs (see the editor's rows). */}
           <span
-            className={`truncate tabular-nums ${
+            className={`whitespace-nowrap tabular-nums ${
               parsedValue ? 'text-primary font-medium' : 'text-muted'
             }`}
           >
@@ -471,7 +476,7 @@ export const DatePicker: React.FC<DatePickerProps> = ({
           </span>
         </div>
 
-        {parsedValue && !disabled && (
+        {clearable && parsedValue && !disabled && (
           <div
             onClick={handleClear}
             className="p-0.5 text-muted hover:text-primary transition-colors shrink-0 cursor-pointer"

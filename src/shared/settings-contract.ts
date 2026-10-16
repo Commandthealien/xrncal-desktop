@@ -23,6 +23,10 @@ export interface AppSettings {
   /** IANA zone name (e.g. "America/New_York") shown as a second hour gutter in
    *  Day/Week view - empty means disabled. */
   secondaryTimezone: string
+  /** IANA zones the event editor's zone picker lists first, comma-separated
+   *  ("Asia/Ho_Chi_Minh,Europe/London") - a setting holds only plain values.
+   *  Empty: the picker leads with this computer's zone alone. */
+  preferredTimeZones: string
   /** Grid step that dragging, dropping and edge-resizing snap to, in minutes.
    *  Also the shortest event a resize can produce - a 15-minute floor under a
    *  one-hour tick would let a drag land off the grid it just snapped to. */
@@ -59,6 +63,7 @@ export const DEFAULT_APP_SETTINGS: AppSettings = {
   dayStartHour: 7,
   hourBlockSize: 'medium',
   secondaryTimezone: '',
+  preferredTimeZones: '',
   dragSnapMinutes: 15,
   suggestionShowCalendarName: true,
   // Ten minutes is what every timed event rang with before reminders existed.

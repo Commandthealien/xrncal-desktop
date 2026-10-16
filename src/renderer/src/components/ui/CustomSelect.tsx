@@ -12,6 +12,8 @@ interface SelectOption {
   badge?: string
   description?: string
   disabled?: boolean
+  /** A heading drawn above the first option of each run with the same group. */
+  group?: string
 }
 
 interface CustomSelectProps {
@@ -281,54 +283,61 @@ export const CustomSelect: React.FC<CustomSelectProps> = ({
                 filteredOptions.map((opt, idx) => {
                   const isSelected = opt.value === value
                   const isActive = idx === activeIndex
+                  const startsGroup = Boolean(opt.group) && opt.group !== filteredOptions[idx - 1]?.group
                   return (
-                    <button
-                      key={opt.value}
-                      type="button"
-                      disabled={opt.disabled}
-                      ref={isActive ? activeItemRef : undefined}
-                      onClick={() => handleSelect(opt)}
-                      onMouseEnter={() => !opt.disabled && setActiveIndex(idx)}
-                      className={`flex w-full items-center justify-between gap-2 px-2 py-1.5 text-xs text-left transition-colors cursor-pointer ${
-                        isSelected
-                          ? 'bg-hover text-primary font-medium'
-                          : 'text-primary hover:bg-hover'
-                      } ${isActive ? 'gc-option-active' : ''} ${opt.disabled ? 'opacity-40 cursor-not-allowed' : ''}`}
-                      style={{ borderRadius: 'var(--radius-control)' }}
-                    >
-                      <div className="flex items-center gap-2 min-w-0 flex-1">
-                        {opt.color && (
-                          <span
-                            className="h-2.5 w-2.5 rounded-full shrink-0"
-                            style={{ backgroundColor: opt.color }}
-                          />
-                        )}
+                    <React.Fragment key={opt.value}>
+                      {startsGroup && (
+                        <div className={`px-2 pb-0.5 text-[11px] text-muted ${idx > 0 ? 'pt-2' : 'pt-1'}`}>
+                          {opt.group}
+                        </div>
+                      )}
+                      <button
+                        type="button"
+                        disabled={opt.disabled}
+                        ref={isActive ? activeItemRef : undefined}
+                        onClick={() => handleSelect(opt)}
+                        onMouseEnter={() => !opt.disabled && setActiveIndex(idx)}
+                        className={`flex w-full items-center justify-between gap-2 px-2 py-1.5 text-xs text-left transition-colors cursor-pointer ${
+                          isSelected
+                            ? 'bg-hover text-primary font-medium'
+                            : 'text-primary hover:bg-hover'
+                        } ${isActive ? 'gc-option-active' : ''} ${opt.disabled ? 'opacity-40 cursor-not-allowed' : ''}`}
+                        style={{ borderRadius: 'var(--radius-control)' }}
+                      >
+                        <div className="flex items-center gap-2 min-w-0 flex-1">
+                          {opt.color && (
+                            <span
+                              className="h-2.5 w-2.5 rounded-full shrink-0"
+                              style={{ backgroundColor: opt.color }}
+                            />
+                          )}
 
-                        {opt.icon && <span className="shrink-0">{opt.icon}</span>}
+                          {opt.icon && <span className="shrink-0">{opt.icon}</span>}
 
-                        <div className="min-w-0 flex-1">
-                          <div className="truncate">{opt.label}</div>
-                          {opt.description && (
-                            <div className="text-[10px] text-muted truncate">
-                              {opt.description}
-                            </div>
+                          <div className="min-w-0 flex-1">
+                            <div className="truncate">{opt.label}</div>
+                            {opt.description && (
+                              <div className="text-[10px] text-muted truncate">
+                                {opt.description}
+                              </div>
+                            )}
+                          </div>
+
+                          {opt.badge && (
+                            <span
+                              className="text-[10px] px-1.5 py-0.5 bg-hover text-muted shrink-0"
+                              style={{ borderRadius: 'var(--radius-control)' }}
+                            >
+                              {opt.badge}
+                            </span>
                           )}
                         </div>
 
-                        {opt.badge && (
-                          <span
-                            className="text-[10px] px-1.5 py-0.5 bg-hover text-muted shrink-0"
-                            style={{ borderRadius: 'var(--radius-control)' }}
-                          >
-                            {opt.badge}
-                          </span>
+                        {isSelected && (
+                          <Check className="h-3.5 w-3.5 text-accent shrink-0" />
                         )}
-                      </div>
-
-                      {isSelected && (
-                        <Check className="h-3.5 w-3.5 text-accent shrink-0" />
-                      )}
-                    </button>
+                      </button>
+                    </React.Fragment>
                   )
                 })
               )}

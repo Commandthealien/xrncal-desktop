@@ -14,6 +14,8 @@ export interface DisplayPreferences {
   /** What an event with no reminders of its own rings with (see effectiveReminders). */
   defaultReminderMinutes: AppSettings['defaultReminderMinutes']
   defaultAllDayReminderMinutes: AppSettings['defaultAllDayReminderMinutes']
+  /** Zones the event editor lists first (the parsed `preferredTimeZones` setting). */
+  preferredTimeZones: string[]
 }
 
 const DEFAULT_DISPLAY_PREFERENCES: DisplayPreferences = {
@@ -24,7 +26,8 @@ const DEFAULT_DISPLAY_PREFERENCES: DisplayPreferences = {
   suggestionShowCalendarName: true,
   dragSnapMinutes: 15,
   defaultReminderMinutes: 10,
-  defaultAllDayReminderMinutes: null
+  defaultAllDayReminderMinutes: null,
+  preferredTimeZones: []
 }
 
 /** Row height (px) of one hour in the Day/Week timed grid, per hourBlockSize setting. */

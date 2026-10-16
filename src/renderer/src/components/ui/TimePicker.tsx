@@ -409,7 +409,10 @@ export const TimePicker: React.FC<TimePickerProps> = ({
             }}
             onBlur={commitInput}
             onKeyDown={handleInputKeyDown}
-            className="w-full bg-transparent text-xs font-mono font-medium text-primary placeholder:text-muted border-none outline-none focus:outline-none focus:ring-0 focus-visible:outline-none min-w-0 tabular-nums p-0"
+            // As wide as the longest time it shows ("12:30 PM"), so the field
+            // takes the room its text needs and never clips it.
+            style={{ width: `${(timeFormat === '12h' ? 8 : 5) + 0.5}ch` }}
+            className="bg-transparent text-xs font-mono font-medium text-primary placeholder:text-muted border-none outline-none focus:outline-none focus:ring-0 focus-visible:outline-none min-w-0 tabular-nums p-0"
           />
         </div>
 

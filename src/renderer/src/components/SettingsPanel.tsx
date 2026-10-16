@@ -22,6 +22,7 @@ import { NumberInput, CustomSelect, toast } from './ui'
 import { SNAP_STEP_OPTIONS } from '../dnd/resize-math'
 import { ALL_DAY_REMINDER_PRESETS, TIMED_REMINDER_PRESETS } from '@shared/reminders'
 import { reminderLabel } from '../lib/reminder-labels'
+import { zoneLabel, zoneOptions } from '../lib/time-zones'
 import AppearanceSettings from './AppearanceSettings'
 
 /** `null` is the panel's root list; anything else is the one level below it. */
@@ -68,6 +69,8 @@ interface SettingsPanelProps {
   onChangeDefaultReminderMinutes: (next: DisplayPreferences['defaultReminderMinutes']) => void
   defaultAllDayReminderMinutes: DisplayPreferences['defaultAllDayReminderMinutes']
   onChangeDefaultAllDayReminderMinutes: (next: DisplayPreferences['defaultAllDayReminderMinutes']) => void
+  preferredTimeZones: string[]
+  onChangePreferredTimeZones: (next: string[]) => void
   timezoneNames: string[]
   checkForUpdates: boolean
   onToggleCheckForUpdates: (next: boolean) => void
@@ -313,7 +316,7 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = (props) => {
                       ]}
                     />
                   </div>
-                  <div className="py-3">
+                  <div className="border-b border-hairline py-3">
                     <div className="text-sm text-primary">{t('reminders.settingsAllDay')}</div>
                     <div className="mt-0.5 mb-2 text-xs leading-snug text-muted">
                       {t('reminders.settingsAllDayHint')}
@@ -331,6 +334,49 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = (props) => {
                           label: reminderLabel(t, { minutesBefore: m }, true, props.timeFormat)
                         }))
                       ]}
+                    />
+                  </div>
+                  {/* The zones the event editor lists first, so picking one there
+                      is not a hunt through the whole list. */}
+                  <div className="py-3">
+                    <div className="text-sm text-primary">{t('settings.preferredTimeZones')}</div>
+                    <div className="mt-0.5 mb-2 text-xs leading-snug text-muted">
+                      {t('settings.preferredTimeZonesHint')}
+                    </div>
+                    {props.preferredTimeZones.length > 0 && (
+                      <div className="mb-2 space-y-1">
+                        {props.preferredTimeZones.map((zone) => (
+                          <div
+                            key={zone}
+                            className="flex items-center gap-2 rounded-[3px] bg-hover/60 px-2.5 py-1.5 text-xs"
+                          >
+                            <span className="min-w-0 flex-1 truncate text-primary">{zoneLabel(zone)}</span>
+                            <button
+                              type="button"
+                              onClick={() =>
+                                props.onChangePreferredTimeZones(props.preferredTimeZones.filter((z) => z !== zone))
+                              }
+                              className="shrink-0 cursor-pointer text-muted transition-colors hover:text-today"
+                              title={t('settings.preferredTimeZonesRemove', { zone: zone.replace(/_/g, ' ') })}
+                              aria-label={t('settings.preferredTimeZonesRemove', { zone: zone.replace(/_/g, ' ') })}
+                            >
+                              <X className="h-3 w-3" />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    <CustomSelect
+                      value=""
+                      onChange={(zone) => {
+                        if (zone && !props.preferredTimeZones.includes(zone)) {
+                          props.onChangePreferredTimeZones([...props.preferredTimeZones, zone])
+                        }
+                      }}
+                      searchable
+                      variant="boxed"
+                      placeholder={t('settings.preferredTimeZonesAdd')}
+                      options={zoneOptions().filter((o) => !props.preferredTimeZones.includes(o.value))}
                     />
                   </div>
                 </div>

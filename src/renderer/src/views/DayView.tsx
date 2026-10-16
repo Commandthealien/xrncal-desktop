@@ -185,11 +185,14 @@ export const DayView: React.FC<DayViewProps> = ({
             </h3>
             {showLunar && (
               <div className="mt-0.5 flex items-center gap-1.5 text-xs text-muted">
+                {/* With its month every day ("7/9", not "7"): the one date shown
+                    here has no first-of-month cell nearby to read the month from. */}
                 <LunarLabel
                   day={anchorDate.day}
                   month={anchorDate.month}
                   year={anchorDate.year}
                   className="text-xs"
+                  forceMonth
                 />
               </div>
             )}

@@ -42,7 +42,7 @@ import { useEventDnD } from './dnd/use-event-dnd'
 import { singleDayRange } from './dnd/drop-target'
 import { NotionToaster, toast, showFriendlyError, isStaleEventError } from './components/ui'
 import { DisplayPreferencesProvider, type DisplayPreferences } from './context/DisplayPreferencesContext'
-import { TIME_ZONE_NAMES } from './lib/time-zones'
+import { TIME_ZONE_NAMES, parseZoneList, serializeZoneList } from './lib/time-zones'
 
 export type { CalendarViewType }
 
@@ -93,6 +93,7 @@ export const App: React.FC = () => {
   const [dayStartHour, setDayStartHour] = useState(7)
   const [hourBlockSize, setHourBlockSize] = useState<DisplayPreferences['hourBlockSize']>('medium')
   const [secondaryTimezone, setSecondaryTimezone] = useState<string>('')
+  const [preferredTimeZones, setPreferredTimeZones] = useState<string[]>([])
   const [suggestionShowCalendarName, setSuggestionShowCalendarName] = useState<boolean>(true)
   const [dragSnapMinutes, setDragSnapMinutes] = useState<AppSettings['dragSnapMinutes']>(15)
   const [defaultReminderMinutes, setDefaultReminderMinutes] =
@@ -432,6 +433,7 @@ export const App: React.FC = () => {
           setDayStartHour(settings.dayStartHour ?? 7)
           setHourBlockSize(settings.hourBlockSize ?? 'medium')
           setSecondaryTimezone(settings.secondaryTimezone ?? '')
+          setPreferredTimeZones(parseZoneList(settings.preferredTimeZones))
           setSuggestionShowCalendarName(settings.suggestionShowCalendarName ?? true)
           setDragSnapMinutes(settings.dragSnapMinutes ?? 15)
           setDefaultReminderMinutes(settings.defaultReminderMinutes === undefined ? 10 : settings.defaultReminderMinutes)
@@ -555,6 +557,11 @@ export const App: React.FC = () => {
   const changeSecondaryTimezone = async (value: string) => {
     setSecondaryTimezone(value)
     if (window.xrncal?.settings) await window.xrncal.settings.set('secondaryTimezone', value)
+  }
+
+  const changePreferredTimeZones = async (next: string[]) => {
+    setPreferredTimeZones(next)
+    if (window.xrncal?.settings) await window.xrncal.settings.set('preferredTimeZones', serializeZoneList(next))
   }
 
   const changeDragSnapMinutes = async (next: AppSettings['dragSnapMinutes']) => {
@@ -1223,7 +1230,8 @@ export const App: React.FC = () => {
         suggestionShowCalendarName,
         dragSnapMinutes,
         defaultReminderMinutes,
-        defaultAllDayReminderMinutes
+        defaultAllDayReminderMinutes,
+        preferredTimeZones
       }}>
     <div
       className="relative flex h-screen w-screen flex-col overflow-hidden bg-app font-sans text-primary select-none"
@@ -1254,9 +1262,11 @@ export const App: React.FC = () => {
       )}
 
       {(() => {
+          // Day and week views head their own columns with the date, so the bar
+          // would only repeat it.
           const header = (
             <AppHeader
-              title={currentView === 'week' ? '' : visibleRange.label}
+              title={currentView === 'week' || currentView === 'day' ? '' : visibleRange.label}
               currentView={currentView}
               showSidebarToggle={showMiniCalendar}
               onToggleSidebar={() => setSidebarCollapsed((v) => !v)}
@@ -1542,6 +1552,8 @@ export const App: React.FC = () => {
         onChangeDefaultReminderMinutes={changeDefaultReminderMinutes}
         defaultAllDayReminderMinutes={defaultAllDayReminderMinutes}
         onChangeDefaultAllDayReminderMinutes={changeDefaultAllDayReminderMinutes}
+        preferredTimeZones={preferredTimeZones}
+        onChangePreferredTimeZones={changePreferredTimeZones}
         timezoneNames={TIME_ZONE_NAMES}
         checkForUpdates={checkForUpdates}
         onToggleCheckForUpdates={toggleCheckForUpdates}
