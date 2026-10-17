@@ -158,7 +158,7 @@ function getLunarMonth11(yy: number, timeZone: number = 7): number {
  */
 function getLeapMonthOffset(a11: number, timeZone: number = 7): number {
   const k = Math.floor((a11 - 2415021.076998695) / 29.530588853 + 0.5)
-  let last = 0
+  let last: number
   let i = 1
   let arc = getSunLongitude(getNewMoonDay(k + i, timeZone), timeZone)
 

@@ -1,7 +1,7 @@
 import type { Calendar, CalendarAccount } from '@shared/event-model'
 
 /** What can be added from the provider list. `graph` is Microsoft, as in `AccountType`. */
-export type AddableProvider = 'google' | 'graph' | 'icloud' | 'caldav' | 'holidays' | 'local'
+export type AddableProvider = 'google' | 'graph' | 'icloud' | 'caldav' | 'subscription' | 'holidays' | 'local'
 
 /**
  * One page of the accounts dialog. The dialog keeps a stack of these, so Back
@@ -16,6 +16,7 @@ export type AccountsView =
   | { name: 'connect'; provider: 'google' | 'graph' | 'icloud' | 'caldav' }
   | { name: 'local' }
   | { name: 'holidays' }
+  | { name: 'subscriptions' }
   | { name: 'choose'; accountId: string }
 
 /** What every page gets: the data, and the ways to move and to change things. */

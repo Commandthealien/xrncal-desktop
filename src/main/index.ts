@@ -6,8 +6,16 @@ import { adoptLegacyUserDataForApp } from './adopt-legacy-userdata'
 import { initDatabase, closeDatabase } from './db/database'
 import { setupTray } from './tray'
 import { registerMiniIpcHandlers } from './mini-window'
+import { registerReminderIpcHandlers } from './ipc/reminders-ipc'
 import { getSyncWorker } from './ipc/auth-sync-ipc'
 import { isSafeExternalUrl } from './safe-external-url'
+import { refreshHolidayCalendars } from './holidays/holiday-subscription'
+import { startAutoUpdates } from './updater'
+
+// The UI tests (e2e/) run the app on a throwaway profile. The single-instance
+// lock and the database both live in it, so a test run neither touches the real
+// profile nor quits because the installed app is already running.
+if (process.env.XRNCAL_USER_DATA_DIR) app.setPath('userData', process.env.XRNCAL_USER_DATA_DIR)
 
 // Enforce single instance lock
 const gotTheLock = app.requestSingleInstanceLock()
@@ -123,7 +131,8 @@ if (!gotTheLock) {
     loadCredentialsFile()
 
     try {
-      initDatabase(app.getPath('userData'))
+      const db = initDatabase(app.getPath('userData'))
+      refreshHolidayCalendars(db)
     } catch {
       // The window still opens; anything that needs the database fails visibly on its own.
     }
@@ -132,6 +141,7 @@ if (!gotTheLock) {
     createWindow()
 
     registerMiniIpcHandlers(showMainWindow)
+    registerReminderIpcHandlers(showMainWindow)
     try {
       setupTray(showMainWindow)
     } catch {
@@ -139,6 +149,7 @@ if (!gotTheLock) {
     }
 
     app.on('activate', () => showMainWindow())
+    startAutoUpdates()
   })
 
   app.on('window-all-closed', () => {

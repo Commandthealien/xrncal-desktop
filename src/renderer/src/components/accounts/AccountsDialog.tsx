@@ -5,7 +5,13 @@ import type { Calendar, CalendarAccount } from '@shared/event-model'
 import { LOCAL_ACCOUNT_ID } from '../../lib/account-display'
 import type { AccountsPageProps, AccountsView } from './accounts-nav'
 import { AccountDetailView, AccountListView, NewLocalCalendarView, RemoveAccountView } from './AccountViews'
-import { ChooseCalendarsView, ConnectView, HolidaysView, ProviderPickView } from './AddAccountViews'
+import {
+  ChooseCalendarsView,
+  ConnectView,
+  HolidaysView,
+  ProviderPickView,
+  SubscriptionsView
+} from './AddAccountViews'
 
 interface AccountsDialogProps {
   isOpen: boolean
@@ -88,7 +94,9 @@ export const AccountsDialog: React.FC<AccountsDialogProps> = (props) => {
                 ? t('addAccount.providers.local.action')
                 : view.name === 'holidays'
                   ? t('holidays.title')
-                  : t('addAccount.allSet')
+                  : view.name === 'subscriptions'
+                    ? t('subscriptions.title')
+                    : t('addAccount.allSet')
 
   return (
     <div className="gc-overlay select-none" onMouseDown={onClose}>
@@ -119,6 +127,7 @@ export const AccountsDialog: React.FC<AccountsDialogProps> = (props) => {
           {view.name === 'connect' && <ConnectView key={view.provider} {...page} provider={view.provider} />}
           {view.name === 'local' && <NewLocalCalendarView {...page} />}
           {view.name === 'holidays' && <HolidaysView {...page} />}
+          {view.name === 'subscriptions' && <SubscriptionsView {...page} />}
           {view.name === 'choose' && <ChooseCalendarsView {...page} accountId={view.accountId} />}
         </div>
       </div>

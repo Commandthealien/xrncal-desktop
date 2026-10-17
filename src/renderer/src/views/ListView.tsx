@@ -181,6 +181,11 @@ export const ListView: React.FC<ListViewProps> = ({
                 >
                   {date.setLocale(i18n.language).toFormat(dateFormat)}
                 </span>
+                {/* Beside the date, not out at the row's far end: mùng 1 and rằm
+                    are read with the date they fall on. */}
+                {showLunar && (
+                  <LunarLabel day={date.day} month={date.month} year={date.year} full className="shrink-0" />
+                )}
                 {totalDayCount >= 2 && (
                   <span className="flex shrink-0 items-center gap-1 text-[10px] font-medium text-muted bg-hover px-1.5 py-0.5 rounded-[3px] border border-hairline font-mono">
                     <Layers className="w-3 h-3 text-muted" />
@@ -188,9 +193,6 @@ export const ListView: React.FC<ListViewProps> = ({
                   </span>
                 )}
               </div>
-              {showLunar && (
-                <LunarLabel day={date.day} month={date.month} year={date.year} full className="shrink-0" />
-              )}
             </div>
 
             <div className="grid gap-2 pl-1">

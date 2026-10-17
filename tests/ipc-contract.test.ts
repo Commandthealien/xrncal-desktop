@@ -51,8 +51,12 @@ describe('IPC Channels and Contracts', () => {
           dayStartHour: 7,
           hourBlockSize: 'medium',
           secondaryTimezone: '',
+          preferredTimeZones: '',
           dragSnapMinutes: 15,
-          suggestionShowCalendarName: true
+          suggestionShowCalendarName: true,
+          defaultReminderMinutes: 10,
+          defaultAllDayReminderMinutes: null,
+          checkForUpdates: true
         }),
         get: async () => true as any,
         set: async () => true
@@ -70,6 +74,12 @@ describe('IPC Channels and Contracts', () => {
       sync: {
         triggerNow: async () => ({ success: true, pulledCount: 0, pushedCount: 0, errorCount: 0 }),
         getStatus: async () => ({ isSyncing: false, pendingPushesCount: 0, connectedAccounts: [] }),
+        onChanged: () => () => {}
+      },
+      reminders: {
+        listActive: async () => [],
+        dismiss: async () => {},
+        snooze: async () => {},
         onChanged: () => () => {}
       },
       calendars: {
@@ -174,6 +184,8 @@ describe('IPC Channels and Contracts', () => {
         suggestTitles: async () => [],
         shareIcs: async () => ({ success: true }),
         listConflicts: async () => [],
+        respond: async () => ({}) as never,
+        restore: async () => ({}) as never,
         resolveConflict: async () => true
       },
       ics: {
@@ -185,6 +197,10 @@ describe('IPC Channels and Contracts', () => {
         toggle: async () => {},
         getUpcoming: async () => ({ occurrences: [] }),
         setAlwaysOnTop: async () => true
+      },
+      subscriptions: {
+        add: async () => ({}) as never,
+        refresh: async () => 0
       },
       holidays: {
         subscribe: async (_type) => ({ calendarId: 'cal_h1', count: 10 }),

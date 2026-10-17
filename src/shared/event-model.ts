@@ -2,6 +2,10 @@
  * Canonical Calendar, Event, Recurrence, and Sync Domain Models
  */
 
+import type { EventReminder } from './reminders'
+
+export type { EventReminder }
+
 type AccountType = 'local' | 'google' | 'graph' | 'caldav'
 
 export interface CalendarAccount {
@@ -25,18 +29,51 @@ export interface Calendar {
   /** True once the user has picked this calendar's colour themselves; provider
    *  syncs then stop overwriting it. */
   colorIsCustom?: boolean
+  /** Reminders a timed event in this calendar gets when it names none of its
+   *  own. Only Google publishes one; undefined everywhere else. */
+  defaultReminders?: EventReminder[]
+  /** The .ics feed a subscribed calendar is refreshed from (read-only, local). */
+  subscriptionUrl?: string
+  subscriptionRefreshedAt?: string
   syncToken?: string
   createdAt: string
   updatedAt: string
 }
 
-type AttendeeResponseStatus = 'accepted' | 'declined' | 'tentative' | 'needsAction'
+export type AttendeeResponseStatus = 'accepted' | 'declined' | 'tentative' | 'needsAction'
+
+/** The answers a guest can give an invitation. */
+export type RsvpResponse = 'accepted' | 'tentative' | 'declined'
 
 export interface Attendee {
   email: string
   displayName?: string
   responseStatus?: AttendeeResponseStatus
   isOrganizer?: boolean
+  /** This attendee is the account's own user. Only set by a provider pull. */
+  isSelf?: boolean
+  /** Unset for a required guest. Kept so a push sends the guest back as what
+   *  they were: a list without the room would cancel its booking. */
+  role?: AttendeeRole
+}
+
+/** 'room' and 'resource' are booked, not invited: a meeting room, or other
+ *  equipment (iCalendar's CUTYPE). Google and Graph call both a resource. */
+export type AttendeeRole = 'optional' | 'room' | 'resource'
+
+/** Flag the account's own entry in a guest list a provider sent. Addresses
+ *  are compared without case; `selfEmail` may be absent (no known address). */
+export function markSelfAttendee(attendees: Attendee[], selfEmail: string | undefined): Attendee[] {
+  const self = selfEmail?.trim().toLowerCase()
+  if (!self) return attendees
+  return attendees.map((a) => (a.email.toLowerCase() === self ? { ...a, isSelf: true } : a))
+}
+
+/** The account's own attendee entry when the event is an invitation from
+ *  someone else - the case where there is something to reply to. */
+export function invitationSelf(attendees: readonly Attendee[] | undefined): Attendee | undefined {
+  const self = attendees?.find((a) => a.isSelf)
+  return self && !self.isOrganizer ? self : undefined
 }
 
 /**
@@ -73,6 +110,8 @@ export interface CalendarEvent {
   color?: string     // Hex or theme color override
   meetingUrl?: string
   attendees?: Attendee[]
+  /** Undefined: the default applies (see effectiveReminders). `[]`: none. */
+  reminders?: EventReminder[]
   etag?: string
   dirty: boolean
   /** A push to the provider hit a 412 (someone else changed it first) - unresolved until the user picks a side. */
@@ -144,6 +183,8 @@ export interface CreateEventInput {
   color?: string
   meetingUrl?: string
   attendees?: Attendee[]
+  /** Omitted or null: the default applies. */
+  reminders?: EventReminder[] | null
   uid?: string
 }
 
@@ -163,6 +204,8 @@ export interface UpdateEventInput {
   color?: string
   meetingUrl?: string
   attendees?: Attendee[]
+  /** Omitted: unchanged. null: back to the default. */
+  reminders?: EventReminder[] | null
   isDeleted?: boolean
 }
 
@@ -220,6 +263,8 @@ export interface SyncStatus {
   lastError?: string
   pendingPushesCount: number
   connectedAccounts: CalendarAccount[]
+  /** Accounts whose last sync failed, by account id: the error as one line. */
+  accountErrors?: Record<string, string>
 }
 
 export interface SyncResult {
@@ -228,4 +273,6 @@ export interface SyncResult {
   pushedCount: number
   errorCount: number
   message?: string
+  /** Accounts that could not be synced this round, by account id. */
+  accountErrors?: Record<string, string>
 }

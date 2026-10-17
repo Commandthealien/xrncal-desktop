@@ -1,24 +1,16 @@
 import { DateTime } from 'luxon'
 import { exclusiveEndToInclusive, inclusiveEndToExclusiveDate } from '@shared/all-day'
 import type {
+  Attendee,
+  AttendeeResponseStatus,
   CalendarEvent,
   EventException,
   CreateEventInput
 } from '@shared/event-model'
+import { normalizeReminders, remindersForProvider, type EventReminder } from '@shared/reminders'
+import { EVENT_COLORS } from '@shared/event-colors'
 
-const GOOGLE_COLOR_MAP: Record<string, string> = {
-  '1': '#7986cb', // Lavender
-  '2': '#33b679', // Sage
-  '3': '#8e24aa', // Grape
-  '4': '#e67c73', // Flamingo
-  '5': '#f6bf26', // Banana
-  '6': '#f4511e', // Tangerine
-  '7': '#039be5', // Peacock
-  '8': '#616161', // Graphite
-  '9': '#3f51b5', // Blueberry
-  '10': '#0b8043', // Basil
-  '11': '#d50000'  // Tomato
-}
+const GOOGLE_COLOR_MAP: Record<string, string> = Object.fromEntries(EVENT_COLORS.map((c) => [c.googleId, c.hex]))
 
 interface GoogleEventDateTime {
   dateTime?: string
@@ -52,6 +44,89 @@ export interface GoogleCalendarApiEvent {
   }
   extendedProperties?: {
     private?: Record<string, string>
+  }
+  reminders?: GoogleReminders
+  attendees?: GoogleAttendee[]
+}
+
+export interface GoogleAttendee {
+  email?: string
+  displayName?: string
+  responseStatus?: string
+  organizer?: boolean
+  /** Google marks the entry that is the calendar's own user. */
+  self?: boolean
+  /** A meeting room or other bookable resource. Read-only: Google works it
+   *  out from the address, so a push only has to keep the entry. */
+  resource?: boolean
+  optional?: boolean
+}
+
+const GOOGLE_RESPONSES = new Set<AttendeeResponseStatus>(['accepted', 'declined', 'tentative', 'needsAction'])
+
+export function googleAttendeesToDomain(attendees?: GoogleAttendee[]): Attendee[] {
+  return (attendees || [])
+    .filter((a) => a.email)
+    .map((a) => ({
+      email: a.email!,
+      displayName: a.displayName || undefined,
+      responseStatus: GOOGLE_RESPONSES.has(a.responseStatus as AttendeeResponseStatus)
+        ? (a.responseStatus as AttendeeResponseStatus)
+        : 'needsAction',
+      isOrganizer: a.organizer === true,
+      isSelf: a.self === true,
+      // Rooms stay in the list: a PUT without one would cancel its booking.
+      role: a.resource ? 'room' : a.optional ? 'optional' : undefined
+    }))
+}
+
+/** Ours as Google's. Email, name, response and `optional` are writable;
+ *  Google works out the organizer, `self` and rooms on its side. */
+export function domainAttendeesToGoogle(attendees: readonly Attendee[]): GoogleAttendee[] {
+  return attendees.map((a) => ({
+    email: a.email,
+    displayName: a.displayName,
+    responseStatus: a.responseStatus || 'needsAction',
+    ...(a.role === 'optional' ? { optional: true } : {})
+  }))
+}
+
+interface GoogleReminderOverride {
+  method?: string
+  minutes?: number
+}
+
+/** `useDefault` means the calendar's defaultReminders apply. */
+export interface GoogleReminders {
+  useDefault?: boolean
+  overrides?: GoogleReminderOverride[]
+}
+
+/** Google's `reminders` (or a calendar's `defaultReminders`) as ours; undefined
+ *  when the calendar default applies. A missing field means the same thing. */
+export function googleRemindersToDomain(reminders?: GoogleReminders): EventReminder[] | undefined {
+  if (!reminders || reminders.useDefault !== false) return undefined
+  return googleOverridesToDomain(reminders.overrides)
+}
+
+export function googleOverridesToDomain(overrides?: GoogleReminderOverride[]): EventReminder[] {
+  return normalizeReminders(
+    (overrides || [])
+      .filter((o) => typeof o.minutes === 'number')
+      .map((o): EventReminder =>
+        o.method === 'email' ? { minutesBefore: o.minutes!, method: 'email' } : { minutesBefore: o.minutes! }
+      )
+  )
+}
+
+function domainRemindersToGoogle(reminders: EventReminder[] | null | undefined): GoogleReminders {
+  if (!reminders) return { useDefault: true }
+  return {
+    useDefault: false,
+    overrides: remindersForProvider('google', reminders).map((r) => ({
+      method: r.method === 'email' ? 'email' : 'popup',
+      minutes: r.minutesBefore
+    }))
   }
 }
 
@@ -195,6 +270,8 @@ export function mapGoogleEventToDomain(
       rrule: rruleString,
       color,
       meetingUrl,
+      reminders: googleRemindersToDomain(gEvent.reminders),
+      attendees: googleAttendeesToDomain(gEvent.attendees),
       etag: gEvent.etag,
       isDeleted: isCancelled
     }
@@ -203,6 +280,11 @@ export function mapGoogleEventToDomain(
 
 /**
  * Map Canonical Domain Event to Google Calendar API v3 format for push
+ */
+/**
+ * `event.attendees` must be the complete guest list, or left undefined when
+ * it is not known: an update is a PUT, which replaces the whole resource, so a
+ * list that is merely empty here removes every guest on Google.
  */
 export function mapDomainEventToGoogle(
   event: CalendarEvent | (CreateEventInput & { id?: string })
@@ -237,11 +319,17 @@ export function mapDomainEventToGoogle(
     description: event.notes || undefined,
     location: event.location || undefined,
     start,
-    end
+    end,
+    // Always sent: an update is a PUT, which replaces the whole resource, so
+    // leaving this out would reset the event's reminders on Google.
+    reminders: domainRemindersToGoogle(event.reminders)
   }
 
   if (event.rrule) {
     gEvent.recurrence = [`RRULE:${event.rrule}`]
+  }
+  if (event.attendees) {
+    gEvent.attendees = domainAttendeesToGoogle(event.attendees)
   }
 
   const hex = event.color?.toLowerCase()

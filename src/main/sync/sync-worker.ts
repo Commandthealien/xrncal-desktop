@@ -3,6 +3,7 @@ import { SyncStateRepo } from '../db/repos/sync-state-repo'
 import { GoogleSyncEngine } from './google-sync-engine'
 import { MicrosoftSyncEngine } from './microsoft-sync-engine'
 import { CalDavSyncEngine } from './caldav-sync-engine'
+import { refreshDueSubscriptions } from '../subscriptions/ics-subscription'
 import type { SyncStatus, SyncResult } from '@shared/event-model'
 import { mt } from '../i18n-main'
 import { BrowserWindow } from 'electron'
@@ -19,6 +20,8 @@ export class SyncWorker {
   private isSyncing = false
   private lastSyncTime?: string
   private lastError?: string
+  /** Accounts the last sync could not reach, by id, and why. */
+  private accountErrors: Record<string, string> = {}
 
   private currentIntervalMs = 5 * 60 * 1000
 
@@ -101,22 +104,25 @@ export class SyncWorker {
       // Run the three providers concurrently and settle independently: in
       // sequence, a slow provider delays the other two and a throw from the
       // first skips the rest entirely.
-      const [googleRes, msRes, caldavRes] = await Promise.all([
+      const [googleRes, msRes, caldavRes, feedsRes] = await Promise.all([
         this.googleEngine
           .syncAll(this.googleClientId, this.googleClientSecret)
           .catch((err) => this.engineFailure('Google', err)),
         this.microsoftEngine
           .syncAll(this.msClientId, this.msClientSecret)
           .catch((err) => this.engineFailure('Microsoft', err)),
-        this.caldavEngine.syncAll().catch((err) => this.engineFailure('CalDAV', err))
+        this.caldavEngine.syncAll().catch((err) => this.engineFailure('CalDAV', err)),
+        // Calendars subscribed to by link; each is fetched only when it is due.
+        refreshDueSubscriptions(this.db).catch(() => ({ pulledCount: 0, errorCount: 1 }))
       ])
 
-      const totalPulled = googleRes.pulledCount + msRes.pulledCount + caldavRes.pulledCount
+      const totalPulled = googleRes.pulledCount + msRes.pulledCount + caldavRes.pulledCount + feedsRes.pulledCount
       const totalPushed = googleRes.pushedCount + msRes.pushedCount + caldavRes.pushedCount
-      const totalErrors = googleRes.errorCount + msRes.errorCount + caldavRes.errorCount
+      const totalErrors = googleRes.errorCount + msRes.errorCount + caldavRes.errorCount + feedsRes.errorCount
 
       this.lastSyncTime = new Date().toISOString()
       this.lastError = totalErrors > 0 ? `Sync completed with ${totalErrors} errors` : undefined
+      this.accountErrors = { ...googleRes.accountErrors, ...msRes.accountErrors, ...caldavRes.accountErrors }
 
       // Tell the renderer its copy of the data is out of date. This matters more
       // than "the view is a few minutes stale": a successful push re-keys the
@@ -169,7 +175,8 @@ export class SyncWorker {
       isSyncing: this.isSyncing,
       lastError: this.lastError,
       pendingPushesCount: new SyncStateRepo(this.db).countPendingPushes(),
-      connectedAccounts: accounts
+      connectedAccounts: accounts,
+      accountErrors: this.accountErrors
     }
   }
 }

@@ -38,7 +38,7 @@ People on Windows and Linux need one native window that unifies Google Calendar,
 |---------|-------|--------|
 | **R1** | Local + Google, all 5 views, editor-first, DnD, lunar, week numbers, notifications | Complete (Phase 5) |
 | **R2** | Microsoft Graph, CalDAV, search, share ICS, invite attendees, color filter | Complete (Phase 8) |
-| **R3** | Mini window, local tasks, deep theme (wallpaper, accent, overlay) | Complete (Phase 9) |
+| **R3** | Mini window, local tasks (later removed), deep theme (wallpaper, accent, overlay) | Complete (Phase 9) |
 | **Stretch** | Keyboard accessibility, adaptive sync polling, holiday calendars, copy-single-instance | Complete (Phase 10) |
 
 ---

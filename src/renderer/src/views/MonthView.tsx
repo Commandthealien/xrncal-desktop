@@ -5,7 +5,6 @@ import { useTranslation } from 'react-i18next'
 import { DateTime } from 'luxon'
 import { Layers } from 'lucide-react'
 import type { ExpandedOccurrence } from '@shared/event-model'
-import { getDayHighlights, DAY_HIGHLIGHT_COLORS, type DayHighlightKind } from '@shared/day-highlight'
 import { formatClockTime } from '@shared/time-format'
 import { useWheelNavigation } from '../hooks/use-wheel-navigation'
 import { useDisplayPreferences } from '../context/DisplayPreferencesContext'
@@ -36,15 +35,14 @@ interface MonthViewProps {
   onDropOnDate?: (e: React.DragEvent, targetDate: DateTime) => void
 }
 
-/** ~10% tint of the whole cell for one marker, diagonal split when a day carries more than one -
- *  same subtlety as "today"'s bg-today/5 column tint in Week view, just for a whole day cell. */
-function highlightBackground(kinds: DayHighlightKind[]): string | undefined {
-  if (kinds.length === 0) return undefined
-  const colors = kinds.map((k) => `${DAY_HIGHLIGHT_COLORS[k]}1a`)
-  if (colors.length === 1) return colors[0]
-  const stops = colors.map((c, i) => `${c} ${(i / colors.length) * 100}% ${((i + 1) / colors.length) * 100}%`)
-  return `linear-gradient(135deg, ${stops.join(', ')})`
-}
+/**
+ * Today's cell is the only one tinted. The 1st of the month, mùng 1 and rằm
+ * used to tint theirs too, in four hues at 10%, which on the dark theme came out
+ * as four near-identical muddy cells. Now each day is marked by its own shape -
+ * today a filled circle, the 1st its month's name, mùng 1 and rằm a moon chip
+ * (LunarLabel) - and the same marks appear in every view.
+ */
+const TODAY_CELL_BACKGROUND = 'color-mix(in srgb, var(--color-today-mark) 10%, var(--color-bg-surface))'
 
 interface MonthDayCellProps {
   day: DateTime
@@ -81,18 +79,16 @@ const MonthDayCell: React.FC<MonthDayCellProps> = ({
   onDropOnDate,
   onPeekDay
 }) => {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   const { timeFormat } = useDisplayPreferences()
-  const today = DateTime.local()
   const dayKey = day.toFormat('yyyy-MM-dd')
   const isCurrentMonth = day.month === anchorDate.month
+  const isToday = day.hasSame(DateTime.local(), 'day')
+  const isMonthStart = day.day === 1
   const totalItems = dayOccurrences.length
   const fitsAll = totalItems <= maxVisible
   const visibleCount = fitsAll ? totalItems : Math.max(0, maxVisible - 1)
   const overflow = totalItems - visibleCount
-
-  const highlights = React.useMemo(() => getDayHighlights(day, today), [day, today])
-  const highlightBg = highlightBackground(highlights)
 
   // Keeping the keyboard cursor on screen: an event it has landed on that would
   // otherwise sit inside this cell's "+N more" overflow takes the last visible
@@ -117,16 +113,22 @@ const MonthDayCell: React.FC<MonthDayCellProps> = ({
       className={`gc-cell relative flex min-h-0 min-w-0 cursor-pointer flex-col p-1 overflow-hidden transition-all ${
         isCurrentMonth ? 'bg-surface' : 'bg-app'
       } ${isDropTarget ? 'is-drop-target' : ''}`}
-      style={highlightBg ? { background: highlightBg } : undefined}
+      style={isToday ? { background: TODAY_CELL_BACKGROUND } : undefined}
     >
       {/* Day number & lunar */}
       <div className="mb-0.5 flex items-center justify-between px-0.5 min-w-0">
         <span
-          className={`flex h-7 w-7 items-center justify-center rounded-full text-sm shrink-0 ${
-            isCurrentMonth ? 'text-primary font-medium' : 'text-muted'
+          className={`flex h-7 min-w-7 items-center justify-center rounded-full text-sm whitespace-nowrap shrink-0 ${
+            isMonthStart ? 'px-1.5' : ''
+          } ${
+            isToday
+              ? 'bg-today font-semibold text-white'
+              : isCurrentMonth
+                ? 'text-primary font-medium'
+                : 'text-muted'
           }`}
         >
-          {day.day}
+          {isMonthStart ? day.setLocale(i18n.language).toFormat('d LLL') : day.day}
         </span>
         <div className="flex items-center gap-1">
           {totalItems >= 2 && (

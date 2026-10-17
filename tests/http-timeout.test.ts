@@ -1,5 +1,12 @@
 import { describe, it, expect, vi, afterEach } from 'vitest'
-import { fetchWithTimeout, RequestTimeoutError, describeHttpFailure } from '../src/main/sync/http'
+import {
+  fetchWithTimeout,
+  RequestTimeoutError,
+  describeHttpFailure,
+  readTextWithin,
+  ResponseTooLargeError,
+  describeError
+} from '../src/main/sync/http'
 
 /**
  * Node's fetch has no default request timeout, so a stalled provider connection
@@ -34,6 +41,46 @@ describe('fetchWithTimeout', () => {
 
     const res = await fetchWithTimeout('https://example.test/ok')
     expect(res.status).toBe(200)
+  })
+
+  it('fails a body that stops arriving, which res.json() would wait on for good', async () => {
+    const stalled = new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.enqueue(new TextEncoder().encode('{"value":['))
+        // ...and nothing more, ever.
+      }
+    })
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(stalled, { status: 200 })))
+
+    const res = await fetchWithTimeout('https://example.test/stall', {}, 30)
+    await expect(res.json()).rejects.toBeInstanceOf(RequestTimeoutError)
+  })
+
+  it('lets a slow body through as long as it keeps coming, and keeps the URL', async () => {
+    const chunks = ['{"a":', '1', '}']
+    const slow = new ReadableStream<Uint8Array>({
+      async pull(controller) {
+        await new Promise((r) => setTimeout(r, 20))
+        const next = chunks.shift()
+        if (next === undefined) controller.close()
+        else controller.enqueue(new TextEncoder().encode(next))
+      }
+    })
+    const upstream = new Response(slow, { status: 207 })
+    Object.defineProperty(upstream, 'url', { value: 'https://example.test/final' })
+    vi.stubGlobal('fetch', vi.fn(async () => upstream))
+
+    // 50 ms idle allowance; the whole body takes ~80 ms.
+    const res = await fetchWithTimeout('https://example.test/slow', {}, 50)
+    expect(res.status).toBe(207)
+    expect(res.url).toBe('https://example.test/final')
+    await expect(res.json()).resolves.toEqual({ a: 1 })
+  })
+
+  it('passes a response with no body as it is', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(null, { status: 204 })))
+    const res = await fetchWithTimeout('https://example.test/empty')
+    expect(res.status).toBe(204)
   })
 
   it('propagates a caller abort as an AbortError, not a timeout', async () => {
@@ -127,5 +174,49 @@ describe('describeHttpFailure', () => {
     const detail = await describeHttpFailure(res as unknown as Response)
 
     expect(detail).toBe('HTTP 403 Forbidden')
+  })
+})
+
+describe('readTextWithin', () => {
+  const streamOf = (chunks: string[], stallAfter = false): Response => {
+    const encoder = new TextEncoder()
+    let i = 0
+    return new Response(
+      new ReadableStream<Uint8Array>({
+        pull(controller) {
+          if (i < chunks.length) controller.enqueue(encoder.encode(chunks[i++]))
+          else if (!stallAfter) controller.close()
+          // Stalled: never enqueue or close again.
+        }
+      })
+    )
+  }
+
+  it('reads a body that arrives in pieces', async () => {
+    await expect(readTextWithin(streamOf(['BEGIN:', 'VCALENDAR']), 'u', 1000)).resolves.toBe('BEGIN:VCALENDAR')
+  })
+
+  it('stops at the size cap without reading the rest', async () => {
+    await expect(readTextWithin(streamOf(['x'.repeat(600), 'x'.repeat(600)]), 'u', 1000)).rejects.toBeInstanceOf(
+      ResponseTooLargeError
+    )
+  })
+
+  it('gives up on a body that stops arriving after the headers', async () => {
+    await expect(readTextWithin(streamOf(['BEGIN:'], true), 'u', 1000, 20)).rejects.toBeInstanceOf(
+      RequestTimeoutError
+    )
+  })
+})
+
+describe('describeError', () => {
+  it('adds the reason fetch keeps on its cause', () => {
+    const err = new TypeError('fetch failed', { cause: new Error('getaddrinfo ENOTFOUND dav.example') })
+    expect(describeError(err)).toBe('fetch failed: getaddrinfo ENOTFOUND dav.example')
+  })
+
+  it('leaves other errors as they are', () => {
+    expect(describeError(new Error('CalDAV PUT failed: HTTP 403'))).toBe('CalDAV PUT failed: HTTP 403')
+    expect(describeError('plain')).toBe('plain')
   })
 })

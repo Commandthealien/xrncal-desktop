@@ -1,10 +1,11 @@
-import React, { useCallback, useEffect, useState } from 'react'
+import React, { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { DateTime } from 'luxon'
 import { AlertTriangle, ChevronRight, Loader2, Palette, Plus, RotateCw, Trash2 } from 'lucide-react'
 import type { Calendar, SyncStatus } from '@shared/event-model'
 import { CALENDAR_COLOR_PALETTE } from '../../lib/calendar-colors'
 import {
+  classifySyncError,
   groupCalendars,
   isRemoteAccount,
   LOCAL_ACCOUNT_ID,
@@ -15,6 +16,7 @@ import { TextInput, toast, showFriendlyError } from '../ui'
 import { CalendarRow, ColorPalette } from './CalendarToggle'
 import ProviderMark from './ProviderMark'
 import type { AccountsPageProps } from './accounts-nav'
+import { useSyncStatus } from '../../hooks/use-sync-status'
 
 /** The provider's name, e.g. "Google" - used in subtitles and the remove wording. */
 function useProviderLabel() {
@@ -53,6 +55,7 @@ export const AccountListView: React.FC<AccountsPageProps> = (props) => {
   const { t } = useTranslation()
   const label = useProviderLabel()
   const groups = groupCalendars(props.accounts, props.calendars)
+  const { status, reload } = useSyncStatus()
 
   return (
     <div className="flex flex-col gap-4">
@@ -70,8 +73,20 @@ export const AccountListView: React.FC<AccountsPageProps> = (props) => {
               />
             )
           }
+          if (group.kind === 'subscription') {
+            return (
+              <NavRow
+                key={group.key}
+                icon={<ProviderMark kind="subscription" />}
+                title={t('subscriptions.title')}
+                subtitle={count}
+                onClick={() => props.push({ name: 'subscriptions' })}
+              />
+            )
+          }
           const account = group.account
           const inactive = account && isRemoteAccount(account) && !account.isActive
+          const syncError = status?.accountErrors?.[group.key]
           return (
             <NavRow
               key={group.key}
@@ -80,6 +95,10 @@ export const AccountListView: React.FC<AccountsPageProps> = (props) => {
               subtitle={
                 inactive ? (
                   <span className="text-today">{t('accounts.notSyncing')}</span>
+                ) : syncError ? (
+                  <span className="text-today" title={syncError}>
+                    {t(`accounts.syncProblems.${classifySyncError(syncError)}`)}
+                  </span>
                 ) : group.kind === 'local' ? (
                   `${t('accounts.localDetail')} · ${count}`
                 ) : (
@@ -97,28 +116,19 @@ export const AccountListView: React.FC<AccountsPageProps> = (props) => {
         {t('addAccount.title')}
       </button>
 
-      <SyncFooter refresh={props.refresh} />
+      <SyncFooter status={status} reload={reload} refresh={props.refresh} />
     </div>
   )
 }
 
 /** Last sync, what is waiting, and Sync now - for all accounts at once, as the worker syncs them together. */
-const SyncFooter: React.FC<{ refresh: () => Promise<void> }> = ({ refresh }) => {
+const SyncFooter: React.FC<{
+  status: SyncStatus | null
+  reload: () => Promise<void>
+  refresh: () => Promise<void>
+}> = ({ status, reload, refresh }) => {
   const { t, i18n } = useTranslation()
-  const [status, setStatus] = useState<SyncStatus | null>(null)
   const [busy, setBusy] = useState(false)
-
-  const load = useCallback(async () => {
-    try {
-      setStatus((await window.xrncal?.sync?.getStatus()) ?? null)
-    } catch {
-      setStatus(null)
-    }
-  }, [])
-
-  useEffect(() => {
-    void load()
-  }, [load])
 
   const syncNow = async () => {
     if (!window.xrncal?.sync) return
@@ -131,7 +141,7 @@ const SyncFooter: React.FC<{ refresh: () => Promise<void> }> = ({ refresh }) => 
       showFriendlyError(err, t('accounts.syncFailed'))
     } finally {
       setBusy(false)
-      void load()
+      void reload()
     }
   }
 
@@ -178,6 +188,8 @@ export const AccountDetailView: React.FC<AccountsPageProps & { accountId: string
   const calendars = group?.calendars ?? []
   const isLocal = props.accountId === LOCAL_ACCOUNT_ID || account?.type === 'local'
   const kind = account ? providerKind(account) : 'local'
+  const { status, reload } = useSyncStatus()
+  const syncError = account?.isActive ? status?.accountErrors?.[props.accountId] : undefined
 
   const syncNow = async () => {
     setSyncing(true)
@@ -188,6 +200,7 @@ export const AccountDetailView: React.FC<AccountsPageProps & { accountId: string
       showFriendlyError(err, t('accounts.syncFailed'))
     } finally {
       setSyncing(false)
+      void reload()
     }
   }
 
@@ -223,6 +236,20 @@ export const AccountDetailView: React.FC<AccountsPageProps & { accountId: string
         >
           <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-today" />
           <span>{t('accounts.notSyncingDetail')}</span>
+        </div>
+      )}
+
+      {syncError && (
+        <div
+          className="flex gap-2 border border-today/40 px-3 py-2 text-xs text-primary"
+          style={{ borderRadius: 'var(--radius-control)' }}
+          role="status"
+        >
+          <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-today" />
+          <span className="min-w-0">
+            <span className="block">{t(`accounts.syncProblems.${classifySyncError(syncError)}`)}</span>
+            <span className="mt-0.5 block select-text break-words text-muted">{syncError}</span>
+          </span>
         </div>
       )}
 

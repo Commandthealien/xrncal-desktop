@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest'
 import type { Calendar, CalendarAccount } from '../src/shared/event-model'
 import {
   classifyConnectError,
+  classifySyncError,
   groupCalendars,
   hostOf,
   normaliseServerInput,
@@ -54,6 +55,22 @@ describe('groupCalendars', () => {
       ['acc_caldav', ['Personal']],
       ['acc_google', ['Work']],
       ['holidays', ['Ngày lễ Việt Nam']]
+    ])
+  })
+
+  it('gives calendars subscribed to by link a group of their own, before holidays', () => {
+    const groups = groupCalendars(
+      [local],
+      [
+        cal('Ngày lễ Việt Nam', LOCAL_ACCOUNT_ID),
+        cal('Fixtures', LOCAL_ACCOUNT_ID, { isReadOnly: true, subscriptionUrl: 'https://example.com/f.ics' }),
+        cal('Notes', LOCAL_ACCOUNT_ID)
+      ]
+    )
+    expect(groups.map((g) => [g.key, g.kind, g.calendars.map((c) => c.name)])).toEqual([
+      [LOCAL_ACCOUNT_ID, 'local', ['Notes']],
+      ['subscriptions', 'subscription', ['Fixtures']],
+      ['holidays', 'holidays', ['Ngày lễ Việt Nam']]
     ])
   })
 
@@ -127,5 +144,24 @@ describe('server address input', () => {
   it('reads the host for the default account name', () => {
     expect(hostOf('homeserver.example.ts.net/')).toBe('homeserver.example.ts.net')
     expect(hostOf('not a url at all')).toBe('')
+  })
+})
+
+describe('classifySyncError', () => {
+  it('says why an account stopped syncing', () => {
+    expect(classifySyncError('fetch failed: getaddrinfo ENOTFOUND homeserver.example.ts.net')).toBe('notFound')
+    expect(classifySyncError('fetch failed: connect ECONNREFUSED 100.68.210.10:443')).toBe('unreachable')
+    expect(classifySyncError('Request timed out after 30000ms: https://dav.example/')).toBe('unreachable')
+    expect(classifySyncError('CalDAV discovery failed with HTTP 401: Unauthorized')).toBe('auth')
+    expect(classifySyncError('Token refresh failed: invalid_grant')).toBe('auth')
+    expect(classifySyncError('CalDAV event query failed with HTTP 503: Service Unavailable')).toBe('server')
+    expect(classifySyncError('fetch failed: self-signed certificate')).toBe('certificate')
+    expect(classifySyncError('The saved password could not be read: the system keyring is locked or unavailable')).toBe('keyring')
+  })
+
+  it('has no connect-only answers', () => {
+    expect(classifySyncError('No calendars found')).toBe('unknown')
+    expect(classifySyncError('Sign-in was cancelled')).toBe('unknown')
+    expect(classifySyncError(undefined)).toBe('unknown')
   })
 })

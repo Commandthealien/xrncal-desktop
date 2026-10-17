@@ -54,7 +54,8 @@ export const KeyboardShortcutsModal: React.FC<KeyboardShortcutsModalProps> = ({
       shortcuts: [
         { keys: ['Shift + ↑', 'Shift + ↓'], description: t('shortcuts.moveByStep') },
         { keys: ['Shift + ←', 'Shift + →'], description: t('shortcuts.moveByDay') },
-        { keys: ['Alt + ↑', 'Alt + ↓'], description: t('shortcuts.resizeByStep') }
+        { keys: ['Alt + ↑', 'Alt + ↓'], description: t('shortcuts.resizeByStep') },
+        { keys: ['Ctrl + Z'], description: t('shortcuts.undo') }
       ]
     },
     {

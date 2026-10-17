@@ -1,6 +1,6 @@
 # xrncal — Project Roadmap
 
-**Last updated:** 2026-08-31  
+**Last updated:** 2026-10-11  
 **Current version:** 0.1.0
 
 ---
@@ -44,7 +44,7 @@ All 10 planned phases are **complete**. The codebase ships R1 + R2 + R3 + Stretc
 
 - ✅ Microsoft Graph (Outlook.com / Microsoft 365) two-way sync
 - ✅ CalDAV: Nextcloud, Synology, generic URL — discovery + two-way sync
-- ✅ Invite attendees; accept/decline where provider supports
+- ✅ Guest lists sync with all three providers; reply Yes / Maybe / No to invitations (added 2026-10)
 - ✅ Share appointment: export `.ics` + OS open-with flow
 - ✅ Full-text search across cached events (FTS5)
 - ✅ Birthday calendars via provider (when exposed)
@@ -52,16 +52,45 @@ All 10 planned phases are **complete**. The codebase ships R1 + R2 + R3 + Stretc
 
 ## R3 Features (Complete)
 
-- ✅ Mini window: always-on-top tray companion with upcoming events and tasks
-- ✅ Local tasks: title, due date, done toggle, optional calendar-day visibility
+- ✅ Mini window: always-on-top tray companion with upcoming events
+- ~~Local tasks~~ — built, then removed (migration 005); not planned to return
 - ✅ Deep theme: accent colors, custom wallpaper, blur + darkness overlay
 
 ## Stretch Features (Complete)
 
 - ✅ Global keyboard shortcuts (T=today, 1–5=views, N/C=new, /=search, ?=help)
-- ✅ Adaptive sync polling (60s focused / 5m blurred)
+- ✅ Adaptive sync polling (20s focused / 5m blurred)
 - ✅ Vietnamese and International holiday calendar subscriptions
 - ✅ Copy single recurring instance (separate from full-series copy)
+
+## Added after 0.1.0 (2026-10)
+
+- ✅ **Reminders:** a list per event, defaults for timed and all-day events, synced with Google
+  (`reminders`), Graph (one reminder) and CalDAV (`VALARM`); all-day reminders such as "the day
+  before at 09:00", which new lunar anniversaries start with; an in-app list to snooze, join the
+  meeting or dismiss. Declined invitations and read-only calendars do not ring by default.
+- ✅ **Invitation replies:** guest lists pulled and pushed for all providers; Yes / Maybe / No
+  delivered through Google's guest list, Graph's accept/decline actions, or CalDAV PARTSTAT.
+- ✅ **Subscriptions by link:** read-only calendars from an `.ics` / `webcal://` feed, refreshed
+  every six hours.
+- ✅ **Undo:** `Ctrl+Z` for moves, resizes, copies and deletes; an Undo button on the delete toast.
+- ✅ **Releases and updates:** tag-triggered release workflow (draft GitHub release, Windows NSIS +
+  Linux AppImage) and in-app updates via `electron-updater`, behind a setting.
+- ✅ **Fixes:** Microsoft sync now removes events deleted in Outlook and skips unchanged rows;
+  holiday calendars extend themselves as years pass; clicking a reminder opens the main window
+  even after it was closed to the tray; editing an event opened from the grid no longer deletes
+  its guests; CalDAV pulls keep meeting links and colours.
+- ✅ **Search that works:** the full-text index never matched (it was built contentless) and slowed
+  every write; rebuilt, it now also finds words without their diacritics ("hop" finds "họp").
+- ✅ **Sync robustness:** CalDAV pulls download only the events whose etag changed; an edit here
+  keeps what other CalDAV clients stored on the event; each account shows why its sync failed;
+  a stalled response body can no longer stop sync until restart.
+- ✅ **Outlook times:** clock time in a zone Graph accepts, the organiser's zone kept on pull, and
+  full notes instead of the 255-character preview.
+- ✅ **Editor:** an event's own time zone and colour; all-day dates no longer move a day west of UTC.
+- ✅ **Reminders:** snoozes and cards on screen survive a restart.
+- ✅ **UI tests and signing:** Playwright drives the built app in CI; the release workflow signs the
+  Windows installer once a certificate (Azure Trusted Signing or `.pfx`) is configured.
 
 ---
 
@@ -95,11 +124,15 @@ The following ideas are outside the current URD scope and require a URD change b
 | Idea | Notes |
 |------|-------|
 | macOS support | Out of scope (URD §6). Electron supports it; requires separate packager config and safeStorage behavior check. |
-| Playwright smoke tests | Architecture supports it; not yet implemented. |
 | Near-real-time sync (push) | Google / Graph push notifications via webhooks; currently polling-only. |
 | Multi-year cache expansion | Currently pulls a bounded window. Full history requires a configurable cache depth. |
 | `.deb` / Fedora RPM packaging | Follow-on after AppImage is validated. |
-| CalDAV self-signed TLS UI | Per-host pin dialog exists in plan; implementation to be confirmed. |
+| CalDAV self-signed TLS UI | Planned in the URD, never implemented: self-signed servers are simply refused by Node's TLS. |
+| Natural-language quick add | "Họp 3pm thứ 6", "giỗ ông 12/8 âm lịch" - deferred. |
+| Code signing | The release workflow signs once a certificate is configured (`docs/deployment-guide.md`); none is yet, so SmartScreen still warns. |
+| Per-occurrence reminders | Reminders belong to the series; a `this`-scoped reminder change applies to all occurrences. |
+| Moving an Outlook event between calendars | Graph has no move endpoint and the push does not recreate the event, so it returns to its original calendar at the next full listing (it used to leave a duplicate). |
+| Graph occurrence overrides | The `/events` listing carries series masters only, so an occurrence moved in Outlook keeps its series time here. |
 
 ---
 
@@ -108,6 +141,6 @@ The following ideas are outside the current URD scope and require a URD change b
 | Version | Milestone |
 |---------|-----------|
 | 0.1.0 | All 10 phases complete. R1+R2+R3+Stretch in codebase. |
-| 0.2.0 | First packaged Windows + Linux installer with live Google OAuth tested. "Daily driver" gate. |
+| 0.2.0 | First published release from the release workflow (reminders, replies, subscriptions, undo, auto-update), live Google OAuth tested. "Daily driver" gate. |
 | 0.3.0 | iCloud CalDAV best-effort validated. Fedora AppImage. |
 | 1.0.0 | Stable release after daily driver validation on both OS targets. |

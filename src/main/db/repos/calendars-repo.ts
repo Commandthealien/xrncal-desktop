@@ -1,5 +1,6 @@
 import type { ISqliteDatabase } from '../sqlite-driver'
 import type { Calendar } from '@shared/event-model'
+import { parseRemindersJson } from '@shared/reminders'
 
 interface CreateCalendarParams {
   id?: string
@@ -9,6 +10,7 @@ interface CreateCalendarParams {
   isVisible?: boolean
   isReadOnly?: boolean
   isDefault?: boolean
+  subscriptionUrl?: string
 }
 
 interface UpdateCalendarParams {
@@ -28,6 +30,9 @@ interface CalendarRow {
   is_read_only: number
   is_default: number
   color_is_custom: number | null
+  default_reminders: string | null
+  subscription_url: string | null
+  subscription_refreshed_at: string | null
   sync_token: string | null
   created_at: string
   updated_at: string
@@ -43,6 +48,9 @@ function mapRowToCalendar(row: CalendarRow): Calendar {
     isReadOnly: row.is_read_only === 1,
     isDefault: row.is_default === 1,
     colorIsCustom: row.color_is_custom === 1,
+    defaultReminders: parseRemindersJson(row.default_reminders),
+    subscriptionUrl: row.subscription_url || undefined,
+    subscriptionRefreshedAt: row.subscription_refreshed_at || undefined,
     syncToken: row.sync_token || undefined,
     createdAt: row.created_at,
     updatedAt: row.updated_at
@@ -76,10 +84,10 @@ export class CalendarsRepo {
 
     this.db
       .prepare(
-        `INSERT INTO calendars (id, account_id, name, color, is_visible, is_read_only, is_default, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
+        `INSERT INTO calendars (id, account_id, name, color, is_visible, is_read_only, is_default, subscription_url, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
       )
-      .run(id, accountId, params.name, params.color, isVisible, isReadOnly, isDefault, now, now)
+      .run(id, accountId, params.name, params.color, isVisible, isReadOnly, isDefault, params.subscriptionUrl ?? null, now, now)
 
     const created = this.getCalendarById(id)
     if (!created) {

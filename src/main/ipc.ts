@@ -6,6 +6,7 @@ import { registerCalendarIpcHandlers } from './ipc/calendar-ipc'
 import { registerSettingsIpcHandlers } from './ipc/settings-ipc'
 import { registerAuthSyncIpcHandlers } from './ipc/auth-sync-ipc'
 import { registerHolidayIpcHandlers } from './ipc/holiday-ipc'
+import { registerSubscriptionIpcHandlers } from './ipc/subscriptions-ipc'
 import { setMainLocale, loadMainLocaleFromDb, getMainLocale } from './i18n-main'
 import { getDatabase } from './db/database'
 import { backupDatabaseTo, defaultBackupFileName } from './db/backup'
@@ -95,5 +96,6 @@ export function registerIpcHandlers(): void {
   registerCalendarIpcHandlers()
   registerAuthSyncIpcHandlers()
   registerHolidayIpcHandlers()
+  registerSubscriptionIpcHandlers()
 }
 

@@ -1,6 +1,6 @@
 # xrncal — Code Standards
 
-**Last updated:** 2026-08-18
+**Last updated:** 2026-10-11
 
 ---
 
@@ -51,7 +51,7 @@
 
 ### TypeScript
 
-- **Interfaces** for data shapes (`CalendarEvent`, `Calendar`, `TaskItem`).
+- **Interfaces** for data shapes (`CalendarEvent`, `Calendar`, `Attendee`).
 - **Types** for unions and utility types (`AccountType`, `RecurringEditScope`, `ThemeMode`).
 - **`I` prefix** only for the SQLite driver abstraction (`ISqliteDatabase`). Not for general interfaces.
 - **Props type** inline or as `interface ComponentNameProps`.
@@ -136,21 +136,33 @@ IPC handlers are registered once at startup in `src/main/ipc.ts` which calls eac
 
 ```ts
 export function registerIpcHandlers(): void {
+  registerSettingsIpcHandlers()
   registerCalendarIpcHandlers()
   registerAuthSyncIpcHandlers()
-  registerSettingsIpcHandlers()
-  registerTasksIpcHandlers()
   registerHolidayIpcHandlers()
+  registerSubscriptionIpcHandlers()
 }
 ```
 
+The two exceptions are the mini window's and the reminders' handlers, registered from
+`src/main/index.ts` (`registerMiniIpcHandlers(showMainWindow)`,
+`registerReminderIpcHandlers(showMainWindow)`): both have to open the main window, and only
+`index.ts` can hand out `showMainWindow`.
+
 ### Read-Only Enforcement
 
-IPC handlers must check `calendar.isReadOnly` before writing events. Read-only calendars (Google shared calendars, holiday subscriptions) must reject mutation requests with a clear error.
+Read-only calendars (holiday and link subscriptions, calendars a provider only lets you read) are
+enforced in the **repo layer**: every write path in `EventsRepo` calls `checkReadOnlyCalendar()`
+and throws `ReadOnlyCalendarError`, which the handler turns into a user-facing message. Put the
+guard in the repo, not the handler - nothing can get round it there.
 
 ### Error Handling
 
-IPC handlers should `try/catch` and return a typed error shape rather than throwing. Throwing in an IPC handler sends an unstructured error to the renderer.
+Handlers throw. Electron delivers the error to the renderer as a rejected `invoke`, and the
+renderer's `showFriendlyError()` (`components/ui/toast.tsx`) strips the IPC wrapper and shows the
+message. Translate known domain errors (such as `ReadOnlyCalendarError`) into a sentence before
+rethrowing. Handlers that return a result object instead (`connectCalDav`, `importIcs`,
+`backupDatabase`) do so because the renderer branches on the outcome, not only on success.
 
 ---
 
@@ -161,7 +173,11 @@ IPC handlers should `try/catch` and return a typed error shape rather than throw
 3. **Sandbox + contextIsolation enabled** on every `BrowserWindow`. `nodeIntegration: false`, `webSecurity: true`.
 4. **External links** opened via `shell.openExternal()`, never by `loadURL()` inside the renderer window.
 5. **ICS import size limit**: cap imported ICS files to prevent memory exhaustion.
-6. **CalDAV TLS**: default-deny self-signed certs unless explicitly pinned by SHA-256. Per-host pin only.
+6. **CalDAV TLS**: Node's default certificate verification, so self-signed servers are refused. The
+   per-host SHA-256 pinning the URD describes was never built; do not add a "trust anyway" switch.
+7. **Outgoing links**: anything handed to `shell.openExternal()` passes `isSafeExternalUrl()`
+   (http, https, mailto). Subscription feeds are fetched only from `https://`, `http://` or
+   `webcal://` addresses.
 
 ---
 
@@ -169,8 +185,11 @@ IPC handlers should `try/catch` and return a typed error shape rather than throw
 
 - **Adapters normalize** provider data into the canonical `CalendarEvent` model. Provider-specific JSON must not leak into the renderer.
 - **Dirty flag**: events modified locally are marked `dirty = 1` in SQLite. The sync engine pushes dirty events before pulling.
-- **Conflict strategy**: last-write-wins. If the provider rejects with 412 (Precondition Failed), surface a visible error to the user; do not silently overwrite.
+- **Conflict strategy**: last-write-wins guarded by `If-Match`. A 412 sets `has_conflict = 1`; the row leaves the push set until the user resolves it in the conflicts dialog. Never overwrite silently.
 - **Adaptive poll interval**: 20 seconds when the main window is focused; 5 minutes when blurred/minimized. Controlled via `SyncWorker.setFocusState()`.
+- **Guest lists**: push an event's attendees only when `attendees_synced = 1` or the event has never been pushed. An empty list that was simply never fetched would remove every guest from the meeting.
+- **Reminders**: a pull merges with `mergePulledReminders()` so the parts of a local list a provider cannot hold (Graph keeps one reminder) survive the round trip.
+- **Replies**: an invitation reply waits in `rsvp_pending` and travels on its own path (Google guest-list PATCH, Graph accept/decline, CalDAV PUT), not through `dirty`.
 
 ---
 
@@ -195,5 +214,7 @@ IPC handlers should `try/catch` and return a typed error shape rather than throw
 
 ## Git & Branch Conventions
 
-- All 10 phases were implemented on the main branch as a greenfield build.
-- Commit messages follow the format: `feat(phase-N): brief description`.
+- Commit messages follow `type(scope): brief description` - `feat(sync): …`, `fix(dnd): …`,
+  `chore: …`, `docs(readme): …`.
+- Releases: bump `version` in `package.json`, then push a `v<version>` tag; the release workflow
+  builds a draft GitHub release to review and publish.

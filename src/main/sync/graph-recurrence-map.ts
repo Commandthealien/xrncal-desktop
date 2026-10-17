@@ -131,7 +131,9 @@ export function graphRecurrenceToRrule(graphRecurrence: GraphRecurrence): string
  */
 export function rruleToGraphRecurrence(
   rruleStr: string,
-  startDateStr: string // YYYY-MM-DD
+  startDateStr: string, // YYYY-MM-DD, in the zone the event is sent in
+  /** That zone: an UNTIL instant ends on its date there. */
+  zone = 'utc'
 ): GraphRecurrence {
   const parts = rruleStr.split(';').reduce<Record<string, string>>((acc, curr) => {
     const [k, v] = curr.split('=')
@@ -147,6 +149,11 @@ export function rruleToGraphRecurrence(
   const byMonthDay = parts['BYMONTHDAY'] ? parseInt(parts['BYMONTHDAY'], 10) : undefined
   const byMonth = parts['BYMONTH'] ? parseInt(parts['BYMONTH'], 10) : undefined
 
+  // A rule that leaves out the day repeats on the start's own - RFC 5545 takes
+  // it from DTSTART. These used to default to Monday, the 1st and January.
+  const start = DateTime.fromISO(startDateStr)
+  const startDay = DAY_MAP_FROM_RRULE[['MO', 'TU', 'WE', 'TH', 'FR', 'SA', 'SU'][start.weekday - 1]]
+
   let pattern: GraphRecurrencePattern = {
     type: 'daily',
     interval
@@ -157,7 +164,7 @@ export function rruleToGraphRecurrence(
   } else if (freq === 'WEEKLY') {
     const days = byDay
       ? byDay.split(',').map((d) => DAY_MAP_FROM_RRULE[d.toUpperCase()]).filter(Boolean) as any[]
-      : ['monday']
+      : [startDay]
     pattern = {
       type: 'weekly',
       interval,
@@ -182,10 +189,10 @@ export function rruleToGraphRecurrence(
           daysOfWeek: [DAY_MAP_FROM_RRULE[dayCode] || 'monday']
         }
       } else {
-        pattern = { type: 'absoluteMonthly', interval, dayOfMonth: 1 }
+        pattern = { type: 'absoluteMonthly', interval, dayOfMonth: start.day }
       }
     } else {
-      pattern = { type: 'absoluteMonthly', interval, dayOfMonth: 1 }
+      pattern = { type: 'absoluteMonthly', interval, dayOfMonth: start.day }
     }
   } else if (freq === 'YEARLY') {
     if (byMonth && byMonthDay) {
@@ -199,8 +206,8 @@ export function rruleToGraphRecurrence(
       pattern = {
         type: 'absoluteYearly',
         interval,
-        month: byMonth || 1,
-        dayOfMonth: byMonthDay || 1
+        month: byMonth || start.month,
+        dayOfMonth: byMonthDay || start.day
       }
     }
   }
@@ -218,7 +225,10 @@ export function rruleToGraphRecurrence(
       numberOfOccurrences: count
     }
   } else if (until) {
-    const dt = DateTime.fromFormat(until.substring(0, 8), 'yyyyMMdd')
+    // UNTIL=20261231T165959Z is the last instant; its date is where it falls in the event's zone.
+    const dt = /T\d{6}Z$/i.test(until)
+      ? DateTime.fromFormat(until, "yyyyMMdd'T'HHmmss'Z'", { zone: 'utc' }).setZone(zone)
+      : DateTime.fromFormat(until.substring(0, 8), 'yyyyMMdd')
     const endDateFormatted = dt.isValid ? dt.toFormat('yyyy-MM-dd') : startDateStr
     range = {
       type: 'endDate',

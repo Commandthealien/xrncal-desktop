@@ -89,8 +89,8 @@ function parseSmartTime(raw: string): string | null {
   const isAm = clean.endsWith('am') || clean.endsWith('sa')
   const textWithoutMeridiem = clean.replace(/pm|am|ch|sa/g, '')
 
-  let hours = 0
-  let mins = 0
+  let hours: number
+  let mins: number
 
   if (textWithoutMeridiem.includes(':') || textWithoutMeridiem.includes('h') || textWithoutMeridiem.includes('.')) {
     const parts = textWithoutMeridiem.split(/[:h.]/)
@@ -409,7 +409,10 @@ export const TimePicker: React.FC<TimePickerProps> = ({
             }}
             onBlur={commitInput}
             onKeyDown={handleInputKeyDown}
-            className="w-full bg-transparent text-xs font-mono font-medium text-primary placeholder:text-muted border-none outline-none focus:outline-none focus:ring-0 focus-visible:outline-none min-w-0 tabular-nums p-0"
+            // As wide as the longest time it shows ("12:30 PM"), so the field
+            // takes the room its text needs and never clips it.
+            style={{ width: `${(timeFormat === '12h' ? 8 : 5) + 0.5}ch` }}
+            className="bg-transparent text-xs font-mono font-medium text-primary placeholder:text-muted border-none outline-none focus:outline-none focus:ring-0 focus-visible:outline-none min-w-0 tabular-nums p-0"
           />
         </div>
 

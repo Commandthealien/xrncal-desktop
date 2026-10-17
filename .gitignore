@@ -47,3 +47,7 @@ xrncal.env
 # OS metadata
 .DS_Store
 Thumbs.db
+
+# Playwright output
+test-results/
+playwright-report/

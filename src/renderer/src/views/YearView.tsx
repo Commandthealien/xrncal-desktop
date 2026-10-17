@@ -137,6 +137,7 @@ const MonthCard = React.memo<MonthCardProps>(
                     day={day.day}
                     month={day.month}
                     year={day.year}
+                    variant="text"
                     className={`gc-year-lunar !text-[8px] leading-none ${isToday ? '!text-white/85' : ''}`}
                   />
                 )}

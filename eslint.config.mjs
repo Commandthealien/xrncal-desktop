@@ -21,7 +21,13 @@ export default tseslint.config(
   {
     files: ['src/renderer/**/*.{ts,tsx}'],
     plugins: { 'react-hooks': reactHooks },
-    rules: reactHooks.configs.recommended.rules,
+    // The two rules the plugin recommended before v7. v7's recommended set adds
+    // the React Compiler rules (set-state-in-effect, refs, immutability, ...);
+    // meeting them means restructuring effects in App.tsx, a change of its own.
+    rules: {
+      'react-hooks/rules-of-hooks': 'error',
+      'react-hooks/exhaustive-deps': 'warn'
+    },
     languageOptions: { globals: globals.browser }
   },
   {

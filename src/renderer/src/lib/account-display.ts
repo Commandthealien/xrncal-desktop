@@ -9,13 +9,13 @@ import { HOLIDAY_CALENDAR_META } from '@shared/holiday-calendars'
  */
 
 /** What a group is, for its icon and label. `icloud` is a CalDAV account on Apple's server. */
-export type ProviderKind = 'local' | 'google' | 'graph' | 'caldav' | 'icloud' | 'holidays'
+export type ProviderKind = 'local' | 'google' | 'graph' | 'caldav' | 'icloud' | 'holidays' | 'subscription'
 
 export interface CalendarGroup {
-  /** The account id, or `holidays` for the subscribed holiday calendars. */
+  /** The account id, or `holidays` / `subscriptions` for those two groups. */
   key: string
   kind: ProviderKind
-  /** Absent only for the holidays group. */
+  /** Absent for the holidays and subscriptions groups. */
   account?: CalendarAccount
   calendars: Calendar[]
 }
@@ -42,7 +42,8 @@ export function isRemoteAccount(account: CalendarAccount): boolean {
 
 /**
  * Calendars grouped under their accounts: this computer first, then each
- * connected account in the order it was added, then holidays. Within a group
+ * connected account in the order it was added, then subscriptions, then
+ * holidays. Within a group
  * the default calendar leads and the rest are alphabetical. Every account gets
  * a group even with no calendars yet - the accounts dialog lists it while its
  * first sync runs; the sidebar skips empty groups itself.
@@ -50,11 +51,18 @@ export function isRemoteAccount(account: CalendarAccount): boolean {
 export function groupCalendars(accounts: CalendarAccount[], calendars: Calendar[]): CalendarGroup[] {
   const byAccount = new Map<string, Calendar[]>()
   const holidays: Calendar[] = []
+  const subscriptions: Calendar[] = []
   const known = new Set(accounts.map((a) => a.id))
 
   for (const cal of calendars) {
     if (isHolidayCalendar(cal)) {
       holidays.push(cal)
+      continue
+    }
+    // Local calendars too, but fed from a link: a group of their own, so
+    // "this computer" stays the calendars the user writes in.
+    if (cal.subscriptionUrl) {
+      subscriptions.push(cal)
       continue
     }
     // A calendar whose account row is gone still has to show somewhere.
@@ -86,6 +94,9 @@ export function groupCalendars(accounts: CalendarAccount[], calendars: Calendar[
     groups.unshift({ key: LOCAL_ACCOUNT_ID, kind: 'local', calendars: sortCalendars(orphans) })
   }
 
+  if (subscriptions.length > 0) {
+    groups.push({ key: 'subscriptions', kind: 'subscription', calendars: sortCalendars(subscriptions) })
+  }
   if (holidays.length > 0) {
     groups.push({ key: 'holidays', kind: 'holidays', calendars: sortCalendars(holidays) })
   }
@@ -146,6 +157,22 @@ export function classifyConnectError(message: string | undefined): ConnectProble
     text.includes('ehostunreach')
   ) return 'unreachable'
   return 'unknown'
+}
+
+/** Why an account's last sync failed, in terms a person can act on. */
+export type SyncProblem = 'auth' | 'notFound' | 'unreachable' | 'certificate' | 'keyring' | 'server' | 'unknown'
+
+const SYNC_PROBLEMS: ReadonlySet<ConnectProblem> = new Set(['auth', 'notFound', 'unreachable', 'certificate', 'keyring'])
+
+/**
+ * The connect classifier, narrowed to what can go wrong once connected, plus
+ * the server failing (a 5xx) - which a person can only wait out, unlike a
+ * refused password.
+ */
+export function classifySyncError(message: string | undefined): SyncProblem {
+  if (/\bhttp 5\d\d\b/i.test(message ?? '')) return 'server'
+  const problem = classifyConnectError(message)
+  return SYNC_PROBLEMS.has(problem) ? (problem as SyncProblem) : 'unknown'
 }
 
 /** `https://` added when a bare host was typed - what the main process does too. */

@@ -104,6 +104,32 @@ describe('ICS Parse, Generate & Roundtrip', () => {
     expect(reParsed.events[0].rrule).toBe('FREQ=MONTHLY')
   })
 
+  it('reads a zoned time in its own zone even when the file leaves out the VTIMEZONE', () => {
+    const ics = (tzid: string) =>
+      [
+        'BEGIN:VCALENDAR',
+        'VERSION:2.0',
+        'PRODID:-//Test//EN',
+        'BEGIN:VEVENT',
+        'UID:zoned',
+        'DTSTAMP:20261010T000000Z',
+        `DTSTART;TZID=${tzid}:20261010T090000`,
+        `DTEND;TZID=${tzid}:20261010T100000`,
+        `EXDATE;TZID=${tzid}:20261017T090000`,
+        'RRULE:FREQ=WEEKLY',
+        'SUMMARY:Standup',
+        'END:VEVENT',
+        'END:VCALENDAR'
+      ].join('\r\n')
+
+    const ny = parseIcsContent(ics('America/New_York'), 'cal-test').events[0]
+    expect(ny.dtStartUtc).toBe('2026-10-10T13:00:00.000Z')
+    expect(ny.dtEndUtc).toBe('2026-10-10T14:00:00.000Z')
+    expect(ny.exdate).toBe('2026-10-17T13:00:00.000Z')
+    expect(ny.tzid).toBe('America/New_York')
+    expect(parseIcsContent(ics('Asia/Ho_Chi_Minh'), 'cal-test').events[0].dtStartUtc).toBe('2026-10-10T02:00:00.000Z')
+  })
+
   it('should reject payload exceeding 5MB size cap', () => {
     const largeContent = 'A'.repeat(MAX_ICS_SIZE_BYTES + 100)
     expect(() => parseIcsContent(largeContent, 'cal-test')).toThrowError(/exceeds size cap/)

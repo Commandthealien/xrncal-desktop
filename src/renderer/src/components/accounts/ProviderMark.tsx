@@ -1,5 +1,5 @@
 import React from 'react'
-import { Cloud, Flag, Laptop, Server } from 'lucide-react'
+import { Cloud, Flag, Laptop, Rss, Server } from 'lucide-react'
 import type { ProviderKind } from '../../lib/account-display'
 
 /**
@@ -34,6 +34,7 @@ export const ProviderMark: React.FC<{ kind: ProviderKind; size?: 'sm' | 'md' }> 
       {kind === 'caldav' && <Server className={icon} />}
       {kind === 'local' && <Laptop className={icon} />}
       {kind === 'holidays' && <Flag className={icon} />}
+      {kind === 'subscription' && <Rss className={icon} />}
     </span>
   )
 }
