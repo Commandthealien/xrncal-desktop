@@ -69,8 +69,7 @@ export class CalDavAdapter {
         Authorization: this.authHeader,
         ...headers
       },
-      body,
-      redirect: 'error'
+      body
     })
 
     // Defensive check for fetch implementations/adapters that expose a final URL.
