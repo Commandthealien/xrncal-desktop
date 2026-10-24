@@ -47,14 +47,40 @@ export class CalDavAdapter {
     body?: string,
     headers: Record<string, string> = {}
   ): Promise<Response> {
-    return fetchWithTimeout(url, {
+    // Never send stored credentials to a URL supplied by a CalDAV server unless
+    // it remains on the exact HTTPS origin the user configured.
+    const configured = new URL(this.creds.url)
+    const destination = new URL(url, configured)
+    if (
+      configured.protocol !== 'https:' ||
+      configured.username ||
+      configured.password ||
+      destination.protocol !== 'https:' ||
+      destination.username ||
+      destination.password ||
+      destination.origin !== configured.origin
+    ) {
+      throw new Error('Refusing CalDAV request to an untrusted or non-HTTPS origin')
+    }
+
+    const response = await fetchWithTimeout(destination.toString(), {
       method,
       headers: {
         Authorization: this.authHeader,
         ...headers
       },
-      body
+      body,
+      redirect: 'error'
     })
+
+    // Defensive check for fetch implementations/adapters that expose a final URL.
+    if (response.url) {
+      const finalUrl = new URL(response.url)
+      if (finalUrl.protocol !== 'https:' || finalUrl.origin !== configured.origin) {
+        throw new Error('Refusing CalDAV response from an untrusted origin')
+      }
+    }
+    return response
   }
 
   /**
